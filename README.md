@@ -1,6 +1,6 @@
-# Cryptographic Banking Application: Zero-Knowledge Proof for \( N = p 	imes q \) with Large Prime Factors
+# Cryptographic Banking Application: Zero-Knowledge Proof for \( N = p*q \) with Large Prime Factors
 
-In this project, we explore various primality testing methods as foundational components in cryptographic banking applications. Specifically, we implement Zero-Knowledge Proofs (ZKPs) to verify the primality of large numbers, with a final objective of constructing a ZKP to validate \( N = p 	imes q \), where \( p \) and \( q \) are large primes.
+In this project, we explore various primality testing methods as foundational components in cryptographic banking applications. Specifically, we implement Zero-Knowledge Proofs (ZKPs) to verify the primality of large numbers, with a final objective of constructing a ZKP to validate \( N = p*q \), where \( p \) and \( q \) are large primes.
 
 Circom is used to implement these proofs, and this repository contains both the circuits and scripts to generate and verify certificates of primality. Contributions for optimization and further testing are welcome.
 
