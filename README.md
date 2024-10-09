@@ -1,90 +1,67 @@
-# Primality Testing with Zero-Knowledge Proofs (ZKPs)
+# Cryptographic Banking Application: Zero-Knowledge Proof for \( N = p 	imes q \) with Large Prime Factors
 
-This repository provides implementations of various primality tests using Circom for zk-SNARKs (Zero-Knowledge Succinct Non-Interactive Arguments of Knowledge). Primality tests implemented here include **Fermat**, **Lehmann**, **Rabin-Miller**, and **Pratt Certificate** checks, with each method offering unique reliability, complexity, and cryptographic suitability.
+In this project, we explore various primality testing methods as foundational components in cryptographic banking applications. Specifically, we implement Zero-Knowledge Proofs (ZKPs) to verify the primality of large numbers, with a final objective of constructing a ZKP to validate \( N = p 	imes q \), where \( p \) and \( q \) are large primes.
 
-## Table of Contents
+Circom is used to implement these proofs, and this repository contains both the circuits and scripts to generate and verify certificates of primality. Contributions for optimization and further testing are welcome.
 
-1. [Overview of Primality Tests](#overview-of-primality-tests)
-2. [Project Structure](#project-structure)
-3. [Getting Started](#getting-started)
-4. [Running the Tests](#running-the-tests)
-5. [Contribution Guidelines](#contribution-guidelines)
-6. [References](#references)
+## Circom Installation
 
----
+Refer to the official Circom documentation for installation: [Circom Documentation](https://docs.circom.io/)
 
-## Overview of Primality Tests
+## Primality Testing Methods
 
-### 1. Fermat Primality Test
-   - **Description**: Based on Fermat’s Little Theorem, it checks if \( a^{n-1} \equiv 1 \mod n \) for a base \( a \).
-   - **Pros**: Simple and quick.
-   - **Cons**: Weak against pseudoprimes; limited accuracy for cryptographic applications.
+1. **Fermat Primality Test**  
+   - **Algorithm**: Uses Fermat's Little Theorem, asserting that if \( a^{n-1} \equiv 1 \ (	ext{mod} \ n) \) for several random bases \( a \), \( n \) is likely prime.
+   - **Pros**: Simple and efficient for small numbers.
+   - **Cons**: Can produce pseudoprimes, which falsely pass as primes.
 
-### 2. Lehmann Primality Test
-   - **Description**: Verifies \( a^{(n-1)/2} \equiv \pm 1 \mod n \) for multiple bases \( a \), enhancing the reliability.
-   - **Pros**: Stronger accuracy than Fermat with multiple bases.
-   - **Cons**: Probabilistic; requires several bases for higher reliability.
+2. **Lehmann Primality Test**  
+   - **Algorithm**: Combines Fermat's method with an additional condition: for a chosen base \( a \), \( a^{(n-1)/2} \) should be \( \pm1 \ (	ext{mod} \ n) \).
+   - **Pros**: More accurate than Fermat’s test.
+   - **Cons**: Still not fully reliable for all composites.
 
-### 3. Rabin-Miller Primality Test
-   - **Description**: Uses a decomposition of \( n-1 = 2^s \times d \), examining sequences of powers to identify compositeness.
-   - **Pros**: High accuracy with multiple bases; commonly used in cryptography.
-   - **Cons**: Computationally intensive, especially for large primes.
+3. **Rabin-Miller Primality Test**  
+   - **Algorithm**: A probabilistic test that decomposes \( n-1 \) into \( 2^s 	imes d \) and checks bases \( a \) for nontrivial square roots of 1 mod \( n \).
+   - **Pros**: Highly accurate and widely used in practice.
+   - **Cons**: Probabilistic, though accuracy improves with more rounds.
 
-### 4. Pratt Certificate (Deterministic Proof)
-   - **Description**: A deterministic method where primality is proven through recursive verification of smaller prime factors in \( n-1 \).
-   - **Pros**: Full proof of primality, free from pseudoprimes.
-   - **Cons**: Recursive and computationally intensive.
-
----
+4. **Pratt Primality Certificate**  
+   - **Algorithm**: A deterministic method based on recursively proving the primality of factors of \( n-1 \) and confirming nontrivial roots modulo \( n \).
+   - **Pros**: Offers a certificate of primality, verifiable in polynomial time.
+   - **Cons**: Computationally intense for very large numbers.
 
 ## Project Structure
 
-- **circom/**: Contains `.circom` circuit files implementing each primality test. Each file defines constraints necessary for verifying a number's primality.
-- **inputs/**: JSON input files for each circuit, providing bases, primes, and factors as needed for each test.
-- **scripts/**: Python scripts for running each primality test individually. Also contains a certificate generator for Pratt’s test, which outputs `pratt.json` to be used as input for the Pratt circuit.
-- **makefiles/**: Makefiles for compiling, generating witnesses, setting up circuits, creating proofs, and verifying proofs for each test (e.g., `makefile_pratt` for the Pratt certificate test).
+- **scripts/**: Python scripts implementing each primality test and generating certificates (for Pratt).
+- **circom/**: Circom circuits for each test, enabling ZKP generation.
+- **makefiles/**: Scripts to run each method, step-by-step or in batch.
+- **inputs/**: JSON input files, e.g., `pratt.json`, containing values and certificates.
 
----
+## Usage
 
-## Getting Started
+To use a specific test, e.g., the Pratt certificate, run the following:
 
-### Requirements
+```bash
+make -f makefiles/makefile_pratt
+```
 
-- Install **Circom** following the [Circom Documentation](https://docs.circom.io/) to set up your environment.
-- Ensure that Node.js and `snarkjs` are installed, as they are used for generating witnesses and proof verification.
+To clean up generated files:
 
----
+```bash
+make -f makefiles/makefile_pratt clean
+```
 
-## Running the Tests
+Run each test with caution as large inputs require high processing power.
 
-Each test has an associated makefile, allowing for step-by-step execution. To run the circuits:
+### Example Commands
 
-1. **Compile and run the test**: Replace `makefile_pratt` with the appropriate makefile for the specific test.
-   
-   ```bash
-   make -f makefiles/makefile_pratt
-   ```
+To generate and verify ZKP using Pratt certificate, ensure all Circom dependencies are in place, then use:
 
-2. **Clean build files** (optional):
-   
-   ```bash
-   make -f makefiles/makefile_pratt clean
-   ```
 
----
+## Contributions
 
-### Note
+This repository is an evolving project with a focus on cryptographic banking applications. Code is not fully optimized, and contributions are welcome to enhance performance and functionality.
 
-Larger inputs generate higher constraint counts and may require significant CPU power. Start with smaller inputs to verify compatibility with your system.
+## Citation
 
----
-
-## Contribution Guidelines
-
-These implementations are currently under development and lack optimization. Contributions for performance enhancements or additional features are highly encouraged!
-
----
-
-## References
-
-This project uses Circom for zk-SNARK proof generation. For more details on Circom, see the [Circom Documentation](https://docs.circom.io/).
+Circom and SnarkJS are core components. Please refer to [Circom Documentation](https://docs.circom.io/) for usage and API references.
