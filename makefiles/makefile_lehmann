@@ -1,0 +1,62 @@
+# File: makefiles/makefile_lehmann
+
+CIRCUIT_NAME=lehmann
+CIRCUIT_DIR=circom/
+INPUTS_DIR=inputs/
+BUILD_DIR=build/
+POT_LEVEL=13
+
+# Random keyphrase for automatic contribution
+ENTROPY="random-keyphrase"
+
+all: compile witness setup proof verify
+
+compile:
+	@echo "Compiling $(CIRCUIT_NAME).circom..."
+	mkdir -p $(BUILD_DIR)
+	circom "$(CIRCUIT_DIR)$(CIRCUIT_NAME).circom" --r1cs --wasm --sym -o $(BUILD_DIR)
+
+witness:
+	@echo "Generating witness for $(CIRCUIT_NAME)..."
+	node $(BUILD_DIR)$(CIRCUIT_NAME)_js/generate_witness.js \
+		$(BUILD_DIR)$(CIRCUIT_NAME)_js/$(CIRCUIT_NAME).wasm \
+		$(INPUTS_DIR)$(CIRCUIT_NAME).json \
+		$(BUILD_DIR)/witness.wtns
+
+setup:
+	@echo "Setting up $(CIRCUIT_NAME) circuit with Power of Tau level $(POT_LEVEL)..."
+	snarkjs powersoftau new bn128 $(POT_LEVEL) $(BUILD_DIR)/pot$(POT_LEVEL)_0000.ptau -v
+	@echo "First contribution..."
+	snarkjs powersoftau contribute $(BUILD_DIR)/pot$(POT_LEVEL)_0000.ptau \
+		$(BUILD_DIR)/pot$(POT_LEVEL)_0001.ptau --name="First contribution" --entropy=$(ENTROPY) -v
+	@echo "Preparing phase 2..."
+	snarkjs powersoftau prepare phase2 $(BUILD_DIR)/pot$(POT_LEVEL)_0001.ptau \
+		$(BUILD_DIR)/pot$(POT_LEVEL)_final.ptau -v
+	@echo "Groth16 setup..."
+	snarkjs groth16 setup $(BUILD_DIR)/$(CIRCUIT_NAME).r1cs \
+		$(BUILD_DIR)/pot$(POT_LEVEL)_final.ptau \
+		$(BUILD_DIR)/$(CIRCUIT_NAME)_0000.zkey
+	@echo "Key contribution..."
+	snarkjs zkey contribute $(BUILD_DIR)/$(CIRCUIT_NAME)_0000.zkey \
+		$(BUILD_DIR)/$(CIRCUIT_NAME)_final.zkey --name="Key contribution" --entropy=$(ENTROPY) -v
+	@echo "Exporting verification key..."
+	snarkjs zkey export verificationkey $(BUILD_DIR)/$(CIRCUIT_NAME)_final.zkey \
+		$(BUILD_DIR)/verification_key.json
+
+proof:
+	@echo "Generating proof for $(CIRCUIT_NAME)..."
+	snarkjs groth16 prove $(BUILD_DIR)/$(CIRCUIT_NAME)_final.zkey \
+		$(BUILD_DIR)/witness.wtns \
+		$(BUILD_DIR)/proof.json \
+		$(BUILD_DIR)/public.json
+
+verify:
+	@echo "Verifying proof for $(CIRCUIT_NAME)..."
+	snarkjs groth16 verify $(BUILD_DIR)/verification_key.json \
+		$(BUILD_DIR)/public.json \
+		$(BUILD_DIR)/proof.json
+
+clean:
+	@echo "Cleaning build directory for $(CIRCUIT_NAME)..."
+	rm -rf $(BUILD_DIR)
+	rm -rf $(BUILD_DIR)$(CIRCUIT_NAME)_js
