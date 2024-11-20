@@ -4,6 +4,7 @@ CIRCUIT_NAME=multiply
 CIRCUIT_DIR=circom/
 INPUTS_DIR=inputs/
 BUILD_DIR=build/
+POT_LEVEL=12
 
 # Random keyphrase for automatic contribution
 ENTROPY="random-keyphrase"
