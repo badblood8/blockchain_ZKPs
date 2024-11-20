@@ -1,0 +1,613 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{listings}
+\usepackage[a4paper,margin=0.75in]{geometry}
+\usepackage{courier}
+\usepackage{hyperref}
+
+\title{Zero Knowledge Proofs for Various Primality Tests}
+\author{Dr.Pratik Soni, Raghava, Mahanthi}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+
+\newpage
+
+\section{Introduction}
+
+This document explores various primality testing methods in the context of Zero Knowledge Proofs (ZKPs). Each method is described in detail, including its algorithm, pseudocode, advantages, disadvantages, and its behavior for large numbers. The aim is to understand how these tests can be used for cryptographic applications and their suitability for ZKP systems.
+
+\section{Fermat Primality Test}
+
+\subsection*{Algorithm Explanation}
+
+The Fermat Primality Test is a simple and efficient probabilistic method for checking if a number \( n \) is likely to be prime. It is based on \textbf{Fermat's Little Theorem}, which states:
+
+\[
+\text{If } n \text{ is prime and } a \text{ is an integer such that } 1 \leq a < n, \text{ then: }
+\]
+\[
+a^{n-1} \equiv 1 \pmod{n}.
+\]
+
+The algorithm randomly selects integers \( a \) (called bases) within the range \( [1, n-1] \) and checks whether the above condition holds. If it fails for any base \( a \), \( n \) is composite. If it holds for several bases, \( n \) is declared as \emph{probably prime}.
+
+\subsection*{Pseudocode}
+
+\textbf{Fermat Primality Test}
+
+% \texttt{Input: Number \( n \) to test, Number of iterations \( k \)}  
+% \texttt{Output: "Composite" if \( n \) is composite; "Probably Prime" if \( n \) passes all tests}
+
+\begin{quote}\ttfamily
+1. If \( n \leq 1 \), return "Composite" \\
+2. For \( i = 1 \) to \( k \) do: \\
+\hspace*{2em} a. Randomly choose an integer \( a \) such that \( 1 \leq a < n \) \\
+\hspace*{2em} b. Compute \( x = a^{n-1} \mod n \) \\
+\hspace*{2em} c. If \( x \neq 1 \), return "Composite" \\
+3. If all tests passed, return "Probably Prime"
+\end{quote}
+
+\subsection*{Advantages}
+
+\begin{itemize}
+    \item \textbf{Efficiency}:
+    \begin{itemize}
+        \item Computationally efficient with complexity \( O(k \cdot \log(n)^2) \), where \( k \) is the number of iterations and \( \log(n) \) is the cost of modular exponentiation.
+        \item Suitable for small to medium-sized numbers.
+    \end{itemize}
+    \item \textbf{Simplicity}: Easy to implement with minimal additional mathematical knowledge.
+    \item \textbf{Scalability}: Works well with modern hardware for moderately large numbers.
+\end{itemize}
+
+\subsection*{Disadvantages}
+
+\begin{itemize}
+    \item \textbf{Pseudoprimes}: Some composite numbers (called \emph{Fermat pseudoprimes}) pass the test for specific bases \( a \).
+    \item \textbf{Base Dependence}: The result depends on the choice of base \( a \); poor selection of bases can lead to incorrect results.
+    \item \textbf{No Certificate of Primality}: The test does not provide a deterministic proof or certificate of primality.
+\end{itemize}
+
+\subsection*{Advantages Over Trial Division}
+
+The Fermat test outperforms trial division for numbers larger than \( 10^6 \). While trial division requires \( O(\sqrt{n}) \) checks for divisibility, Fermat operates with \( O(k \cdot \log(n)^2) \) complexity, making it faster for large inputs.
+
+\subsection*{Behavior for Large Numbers}
+
+\begin{itemize}
+    \item Modular exponentiation ensures efficient computation for large numbers.
+    \item The probability of declaring a composite number as "Probably Prime" decreases exponentially with the number of iterations \( k \).
+    \item For \( k \) iterations, the error rate is at most \( 1 / 2^k \), assuming bases are chosen uniformly at random.
+\end{itemize}
+
+\subsection*{Expected Error}
+
+\begin{itemize}
+    \item \textbf{Error Rate}: At most \( 1 / 2^k \), where \( k \) is the number of iterations.
+    \item \textbf{Worst-Case Error}: For Carmichael numbers (a special class of pseudoprimes), all bases \( a \) with \( \gcd(a, n) = 1 \) incorrectly pass the test.
+\end{itemize}
+
+\subsection*{Example}
+
+Test \( n = 561 \) with bases \( a = 2 \) and \( a = 3 \).
+
+\begin{itemize}
+    \item Compute \( 2^{560} \mod 561 \):
+    \[
+    2^{560} \equiv 1 \pmod{561}
+    \]
+    \item Compute \( 3^{560} \mod 561 \):
+    \[
+    3^{560} \equiv 1 \pmod{561}
+    \]
+\end{itemize}
+
+Despite \( 561 \) being composite (it is the smallest Carmichael number), it passes the Fermat test for bases \( a = 2 \) and \( a = 3 \), showcasing the limitation of the test.
+
+\subsection*{Conclusion}
+
+The Fermat Primality Test is a fast and simple probabilistic test for identifying prime numbers. However, its susceptibility to pseudoprimes makes it less reliable for applications requiring absolute certainty, such as cryptography.
+
+
+
+\section{Lehmann Primality Test}
+
+\subsection*{Algorithm Explanation}
+
+The Lehmann Primality Test builds upon Fermat's Little Theorem but includes an additional condition to address some of the shortcomings of the Fermat test, such as its susceptibility to pseudoprimes.
+
+For a number \( n \) to be prime, and a chosen base \( a \), the following must hold:
+
+1. \( a^{n-1} \equiv 1 \pmod{n} \)
+2. \( a^{(n-1)/2} \equiv \pm1 \pmod{n} \)
+
+If \( a^{(n-1)/2} \not\equiv \pm1 \pmod{n} \), then \( n \) is composite. By testing with multiple random bases, the probability of error can be reduced significantly.
+
+\subsection*{Pseudocode}
+
+\textbf{Lehmann Primality Test}
+
+% \texttt{Input: Number \( n \) to test, Number of iterations \( k \)}  
+% \texttt{Output: "Composite" if \( n \) is composite; "Probably Prime" if \( n \) passes all tests}
+
+\begin{quote}\ttfamily
+1. If \( n \leq 1 \), return "Composite" \\
+2. For \( i = 1 \) to \( k \) do: \\
+\hspace*{2em} a. Randomly choose an integer \( a \) such that \( 1 \leq a < n \) \\
+\hspace*{2em} b. Compute \( x = a^{(n-1)/2} \mod n \) \\
+\hspace*{2em} c. If \( x \neq 1 \) and \( x \neq n-1 \), return "Composite" \\
+3. If all tests passed, return "Probably Prime"
+\end{quote}
+
+\subsection*{Advantages}
+
+\begin{itemize}
+    \item \textbf{Increased Accuracy}: By adding the second condition \( a^{(n-1)/2} \equiv \pm1 \pmod{n} \), the Lehmann test catches more composites compared to the Fermat test.
+    \item \textbf{Efficiency}: Still retains a time complexity of \( O(k \cdot \log(n)^2) \), where \( k \) is the number of iterations.
+    \item \textbf{Simplicity}: Easy to implement and provides more reliable results than Fermat.
+\end{itemize}
+
+\subsection*{Disadvantages}
+
+\begin{itemize}
+    \item \textbf{Probabilistic Nature}: Like Fermat, the Lehmann test is probabilistic and cannot guarantee primality.
+    \item \textbf{Dependency on Randomness}: Its accuracy depends on the quality of the random number generator for selecting bases.
+    \item \textbf{No Certificate of Primality}: The Lehmann test does not produce a verifiable certificate of primality.
+\end{itemize}
+
+\subsection*{Advantages Over Fermat Test}
+
+\begin{itemize}
+    \item By checking \( a^{(n-1)/2} \equiv \pm1 \pmod{n} \), the Lehmann test detects pseudoprimes that would otherwise pass the Fermat test.
+    \item Significantly reduces the error rate compared to Fermat.
+\end{itemize}
+
+\subsection*{Behavior for Large Numbers}
+
+\begin{itemize}
+    \item Handles large numbers efficiently using modular exponentiation for calculations.
+    \item For \( k \) iterations, the probability of a composite number passing as "Probably Prime" is at most \( 1 / 2^k \), assuming uniformly random bases.
+\end{itemize}
+
+\subsection*{Expected Error}
+
+\begin{itemize}
+    \item \textbf{Error Rate}: At most \( 1 / 2^k \), where \( k \) is the number of iterations.
+    \item \textbf{Worst-Case Error}: The Lehmann test is still susceptible to Carmichael numbers, but the second condition reduces the chances of error compared to Fermat.
+\end{itemize}
+
+\subsection*{Example}
+
+Test \( n = 341 \) with bases \( a = 2 \) and \( a = 3 \).
+
+\begin{itemize}
+    \item Compute \( 2^{(341-1)/2} \mod 341 \):
+    \[
+    2^{170} \equiv 1 \pmod{341}
+    \]
+    \item Compute \( 3^{(341-1)/2} \mod 341 \):
+    \[
+    3^{170} \equiv 340 \pmod{341} \quad (\text{which is } n-1)
+    \]
+\end{itemize}
+
+Since both \( 2^{170} \) and \( 3^{170} \) satisfy the Lehmann conditions, \( n = 341 \) is declared "Probably Prime," even though \( n \) is composite (it is a pseudoprime).
+
+\subsection*{Conclusion}
+
+The Lehmann Primality Test improves upon Fermat by adding an additional condition to reduce the likelihood of errors. While still probabilistic, it is more reliable than Fermat and is well-suited for applications requiring quick primality checks for moderately large numbers.
+
+\section{Rabin-Miller Primality Test}
+
+\subsection*{Algorithm Explanation}
+
+The Rabin-Miller Primality Test is a probabilistic algorithm widely used to test primality. It improves on the Lehmann test by using the concept of nontrivial square roots of 1 modulo \( n \). The test is based on the following properties:
+
+1. Decompose \( n-1 \) as \( 2^s \cdot d \), where \( d \) is odd.
+2. A number \( n \) is composite if for a randomly chosen base \( a \):
+   - \( a^d \not\equiv 1 \pmod{n} \), and
+   - \( a^{2^r \cdot d} \not\equiv -1 \pmod{n} \) for all \( r \) in \( [0, s-1] \).
+
+If \( n \) passes the above conditions for several random bases, it is declared as \emph{probably prime}.
+
+\subsection*{Pseudocode}
+
+\textbf{Rabin-Miller Primality Test}
+
+% \texttt{Input: Number \( n \) to test, Number of iterations \( k \)}  
+% \texttt{Output: "Composite" if \( n \) is composite; "Probably Prime" if \( n \) passes all tests}
+
+\begin{quote}\ttfamily
+% 1. If \( n \leq 1 \), return "Composite" \\
+% 2. Write \( n-1 \) as \( 2^s \cdot d \) with \( d \) odd \\
+% 3. For \( i = 1 \) to \( k \) do: \\
+\hspace*{2em} a. Randomly choose an integer \( a \) such that \( 1 \leq a < n \) \\
+\hspace*{2em} b. Compute \( x = a^d \mod n \) \\
+\hspace*{2em} c. If \( x = 1 \) or \( x = n-1 \), continue to the next iteration \\
+\hspace*{2em} d. Repeat \( s-1 \) times: \\
+\hspace*{4em} i. Compute \( x = x^2 \mod n \) \\
+\hspace*{4em} ii. If \( x = n-1 \), break \\
+\hspace*{2em} e. If \( x \neq n-1 \), return "Composite" \\
+4. If all tests passed, return "Probably Prime"
+\end{quote}
+
+\subsection*{Advantages}
+
+\begin{itemize}
+    \item \textbf{High Accuracy}: The test detects most composites that would pass Fermat or Lehmann tests.
+    \item \textbf{Efficiency}: Modular exponentiation ensures the test is computationally efficient, with complexity \( O(k \cdot \log(n)^2) \).
+    \item \textbf{Widely Used}: A practical and reliable algorithm for many cryptographic applications.
+\end{itemize}
+
+\subsection*{Disadvantages}
+
+\begin{itemize}
+    \item \textbf{Probabilistic Nature}: Like Fermat and Lehmann, Rabin-Miller cannot provide a deterministic proof of primality unless all possible bases are tested.
+    \item \textbf{Computational Cost}: Slightly more computationally intensive than Fermat or Lehmann due to the additional checks.
+    \item \textbf{Carmichael Numbers}: It can still fail for carefully constructed pseudoprimes, though the likelihood is extremely low.
+\end{itemize}
+
+\subsection*{Advantages Over Lehmann Test}
+
+\begin{itemize}
+    \item Incorporates multiple rounds of squaring, reducing the chance of error compared to the Lehmann test.
+    \item Detects nontrivial square roots of 1 modulo \( n \), which many pseudoprimes would otherwise pass in Lehmann.
+\end{itemize}
+
+\subsection*{Behavior for Large Numbers}
+
+\begin{itemize}
+    \item Efficiently handles large numbers using modular exponentiation for both the initial test and subsequent rounds.
+    \item For \( k \) iterations, the probability of error decreases exponentially, making the test suitable for cryptographic applications.
+\end{itemize}
+
+\subsection*{Expected Error}
+
+\begin{itemize}
+    \item \textbf{Error Rate}: At most \( 1 / 4^k \), where \( k \) is the number of iterations.
+    \item \textbf{Worst-Case Error}: Although extremely unlikely, certain pseudoprimes may pass as "Probably Prime."
+\end{itemize}
+
+\subsection*{Example}
+
+Test \( n = 561 \) with \( n-1 = 560 = 2^4 \cdot 35 \) and base \( a = 2 \).
+
+\begin{itemize}
+    \item Compute \( x = 2^{35} \mod 561 \):
+    \[
+    x \equiv 263 \pmod{561}
+    \]
+    \item Square \( x \) four times (since \( s = 4 \)):
+    \[
+    x^2 \mod 561 = 166, \quad x^4 \mod 561 = 67, \quad x^8 \mod 561 = 1
+    \]
+    \item Since \( x^{2^r \cdot d} \not\equiv -1 \pmod{561} \) for any \( r \), \( n \) is composite.
+\end{itemize}
+
+\subsection*{Conclusion}
+
+The Rabin-Miller Primality Test is a powerful probabilistic method for primality testing. Its ability to detect nontrivial square roots of 1 modulo \( n \) makes it far more reliable than Fermat and Lehmann tests. While it remains probabilistic, its high accuracy and efficiency make it the preferred choice for practical primality testing, especially in cryptographic applications.
+
+\section{Pratt Primality Certificate}
+
+\subsection*{Algorithm Explanation}
+
+The Pratt Primality Certificate is a deterministic algorithm that provides a verifiable certificate of primality. It is based on Lucas's theorem, which states:
+
+\[
+\text{A number } n \text{ is prime if there exists a base } a \text{ such that:}
+\]
+\begin{enumerate}
+    \item \( a^{n-1} \equiv 1 \pmod{n} \),
+    \item \( a^{(n-1)/p} \not\equiv 1 \pmod{n} \) for all prime divisors \( p \) of \( n-1 \).
+\end{enumerate}
+
+The Pratt certificate works recursively: to prove that \( n \) is prime, we must prove that all prime factors of \( n-1 \) are also prime. This recursion ends at small primes that are trivially verifiable.
+
+\subsection*{Pseudocode}
+
+\textbf{Pratt Primality Certificate}
+
+% \texttt{Input: Number \( n \)}  
+% \texttt{Output: A certificate of primality for \( n \)}
+
+\begin{quote}\ttfamily
+1. If \( n \leq 1 \), return "Not Prime" \\
+2. Compute \( n-1 \) and find its prime factorization: \( n-1 = \prod p_i^{e_i} \) \\
+3. Choose a base \( a \) such that \( 1 < a < n \) and compute: \\
+\hspace*{2em} a. \( a^{n-1} \mod n \) \\
+\hspace*{2em} b. \( a^{(n-1)/p_i} \mod n \) for all prime factors \( p_i \) \\
+4. If \( a^{n-1} \not\equiv 1 \pmod{n} \) or any \( a^{(n-1)/p_i} \equiv 1 \pmod{n} \), return "Composite" \\
+5. Recursively verify the primality of each \( p_i \) \\
+6. Return the certificate: \( (n, a, \{(p_i, e_i)\}, \{p_i \text{'s certificates}\}) \)
+\end{quote}
+
+\subsection*{Advantages}
+
+\begin{itemize}
+    \item \textbf{Deterministic Proof}: Provides a verifiable certificate of primality.
+    \item \textbf{Recursive Verification}: Ensures complete rigor by verifying all factors of \( n-1 \).
+    \item \textbf{Polynomial-Time Verification}: Once generated, the certificate can be verified in \( O(\log(n)^2) \).
+\end{itemize}
+
+\subsection*{Disadvantages}
+
+\begin{itemize}
+    \item \textbf{Computationally Intensive}: Factorizing \( n-1 \) is expensive, especially for large \( n \).
+    \item \textbf{Recursive Complexity}: The recursion grows with the number of prime factors in \( n-1 \), increasing the computation time.
+\end{itemize}
+
+\subsection*{Advantages Over Rabin-Miller Test}
+
+\begin{itemize}
+    \item Unlike Rabin-Miller, Pratt certificates are \emph{deterministic} and provide an absolute proof of primality.
+    \item Certificates can be stored and reused, making verification efficient and independent of the original computation.
+\end{itemize}
+
+\subsection*{Behavior for Large Numbers}
+
+\begin{itemize}
+    \item The method remains deterministic but becomes computationally expensive for large primes due to the factorization of \( n-1 \).
+    \item Large numbers with smooth \( n-1 \) (i.e., small prime factors) are easier to handle.
+    \item For cryptographic applications, this method is often impractical due to its recursive nature.
+\end{itemize}
+
+\subsection*{Expected Error}
+
+\begin{itemize}
+    \item \textbf{Error Rate}: None; Pratt provides a deterministic proof.
+    \item \textbf{Worst-Case Complexity}: Depends on the size and factorization of \( n-1 \).
+\end{itemize}
+
+\subsection*{Example}
+
+Let \( n = 23 \). Then \( n-1 = 22 = 2 \times 11 \). 
+
+\begin{enumerate}
+    \item Choose \( a = 2 \). Compute:
+    \[
+    2^{22} \mod 23 \equiv 1 \pmod{23}
+    \]
+    and
+    \[
+    2^{22/2} = 2^{11} \mod 23 \not\equiv 1 \pmod{23}
+    \]
+    \[
+    2^{22/11} = 2^2 \mod 23 \not\equiv 1 \pmod{23}.
+    \]
+    \item Verify \( p_1 = 2 \) and \( p_2 = 11 \). Both are prime.
+    \item Certificate for \( n = 23 \):
+    \[
+    (23, 2, \{(2, 1), (11, 1)\}, \{\text{Certificate for 2}, \text{Certificate for 11}\}).
+    \]
+\end{enumerate}
+
+\subsection*{Conclusion}
+
+The Pratt Primality Certificate is a deterministic method that rigorously proves the primality of a number. While computationally expensive, its recursive structure provides verifiable proof, making it a useful theoretical tool for understanding primality in cryptography and mathematics.
+
+\section{Elliptic Curve Primality Proving (ECPP)}
+
+\subsection*{Algorithm Explanation}
+
+The Elliptic Curve Primality Proving (ECPP) algorithm is a deterministic method for proving the primality of a number \( n \). It is based on the properties of elliptic curves over finite fields. The core idea is to construct an elliptic curve \( E \) and a point \( P \) on it, such that the order of \( P \) satisfies certain divisibility properties, proving the primality of \( n \).
+
+Key steps:
+1. Choose an elliptic curve \( E: y^2 = x^3 + ax + b \pmod{n} \).
+2. Select a point \( P = (x, y) \) on the curve.
+3. Compute the order of \( P \), denoted \( m \), using \( mP \equiv 0 \pmod{n} \).
+4. Verify that the order \( m = n - 1 \) and satisfies the necessary divisibility conditions.
+
+\subsection*{Pseudocode}
+
+\textbf{Elliptic Curve Primality Proving (ECPP)}
+
+% \texttt{Input: Number \( n \)}  
+% \texttt{Output: A certificate of primality for \( n \)}
+
+\begin{quote}\ttfamily
+1. If \( n \leq 1 \), return "Not Prime" \\
+2. Choose an elliptic curve \( E: y^2 = x^3 + ax + b \pmod{n} \). \\
+3. Select a point \( P = (x, y) \) on \( E \). \\
+4. Compute the order \( m \) of \( P \): \\
+\hspace*{2em} a. Use scalar multiplication to compute \( mP \mod n \). \\
+5. Verify that \( m = n - 1 \): \\
+\hspace*{2em} a. Ensure \( mP \equiv 0 \pmod{n} \). \\
+6. Check divisibility conditions: \\
+\hspace*{2em} a. \( m = n - 1 \) is divisible by small primes \( p_i \). \\
+7. Recursively verify the primality of \( p_i \). \\
+8. Return the certificate: \( (n, E, P, m, \text{certificates for } p_i) \).
+\end{quote}
+
+\subsection*{Advantages}
+
+\begin{itemize}
+    \item \textbf{Deterministic Proof}: Provides rigorous proof of primality.
+    \item \textbf{Polynomial-Time Verification}: The certificate can be verified in polynomial time.
+    \item \textbf{Efficient for Large Primes}: ECPP is highly optimized for proving the primality of very large numbers.
+\end{itemize}
+
+\subsection*{Disadvantages}
+
+\begin{itemize}
+    \item \textbf{Complexity in Setup}: Requires careful selection of elliptic curves and points.
+    \item \textbf{Computational Intensity}: The algorithm is computationally expensive due to the order computation and recursive primality checks.
+    \item \textbf{Dependence on Elliptic Curve Theory}: Requires advanced mathematical knowledge for implementation.
+\end{itemize}
+
+\subsection*{Advantages Over Pratt and Rabin-Miller Tests}
+
+\begin{itemize}
+    \item Unlike Pratt, ECPP does not rely on the smoothness of \( n - 1 \) and is more practical for general numbers.
+    \item ECPP provides a deterministic proof, unlike Rabin-Miller, which is probabilistic.
+    \item For very large primes, ECPP is faster and more scalable than Pratt certificates.
+\end{itemize}
+
+\subsection*{Behavior for Large Numbers}
+
+\begin{itemize}
+    \item The algorithm efficiently handles primes with hundreds of digits.
+    \item Modular arithmetic and elliptic curve operations are optimized for large numbers.
+    \item Recursive primality checks ensure the robustness of the proof.
+\end{itemize}
+
+\subsection*{Expected Error}
+
+\begin{itemize}
+    \item \textbf{Error Rate}: None; ECPP provides deterministic proofs.
+    \item \textbf{Worst-Case Complexity}: Depends on the selection of elliptic curves and the recursive depth.
+\end{itemize}
+
+\subsection*{Example}
+
+Let \( n = 11 \). To prove \( 11 \) is prime using ECPP:
+
+\begin{enumerate}
+    \item Choose the elliptic curve \( E: y^2 = x^3 + x + 1 \pmod{11} \).
+    \item Select a point \( P = (2, 7) \) on \( E \).
+    \item Compute the order \( m \) of \( P \):
+    \[
+    m = 10 \quad (\text{since } 10P \equiv 0 \pmod{11}).
+    \]
+    \item Verify that \( m = n - 1 \) and \( m \) satisfies divisibility conditions.
+    \item Recursive verification:
+    \begin{itemize}
+        \item Verify \( p_i \) (prime factors of \( m \)).
+        \item Return the certificate:
+        \[
+        (11, E, P, 10, \text{certificates for } p_i).
+        \]
+    \end{itemize}
+\end{enumerate}
+
+\subsection*{Conclusion}
+
+ECPP is a state-of-the-art primality proving algorithm that combines the power of elliptic curves and modular arithmetic. Its scalability and rigorous proof make it ideal for cryptographic applications requiring absolute certainty of primality.
+
+
+\section{Circom Utility Functions and Optimizations}
+
+To implement various primality tests in Circom, we relied on essential utility functions and employed specific optimizations to overcome limitations and challenges. This section elaborates on these components and their significance in the circuits.
+
+\subsection*{Utility Functions}
+
+\subsubsection*{Num2Bits}
+\textbf{Purpose}: Converts an integer into its binary representation.  
+This function was critical for:
+\begin{itemize}
+    \item Efficiently performing modular exponentiation using repeated squaring.
+    \item Ensuring that the input values conform to binary constraints, reducing errors in circuit behavior.
+\end{itemize}
+
+\textbf{Role in Primality Tests}:
+\begin{itemize}
+    \item In modular exponentiation, the binary representation of the exponent enabled efficient computation.
+    \item Played a central role in breaking down large numbers into manageable binary operations for verification purposes.
+\end{itemize}
+
+\subsubsection*{ModularExponentiation}
+\textbf{Purpose}: Computes modular exponentiation \( \text{base}^{\text{exp}} \mod \text{mod} \).  
+This is the core arithmetic operation used in all primality tests, including Fermat, Lehmann, Pratt, and ECPP.
+
+\textbf{Advantages}:
+\begin{itemize}
+    \item Provides an efficient way to handle large inputs, essential for primality testing of large numbers.
+    \item Reduces computational overhead by using the repeated squaring method, which has a time complexity of \( O(\log(\text{exp})) \).
+\end{itemize}
+
+\subsection*{Tricks and Optimizations in Pratt and ECPP}
+
+\subsubsection*{Static Sizes}
+Circom does not support dynamic array sizes, so we hardcoded sizes for arrays representing factors, primes, and elliptic curve parameters. 
+
+\textbf{Reason for Static Sizes}:
+\begin{itemize}
+    \item To simplify implementation and testing on constrained systems.
+    \item Ensure compatibility with Circom's strict constraints on signal declarations.
+\end{itemize}
+
+\textbf{Implications}:
+\begin{itemize}
+    \item In Pratt, the number of factors per prime (\texttt{maxFactors}) was limited to 5.
+    \item In ECPP, the number of primes (\texttt{maxPrimes}) and factors per prime were fixed to 5.
+\end{itemize}
+
+\textbf{Challenges}:
+\begin{itemize}
+    \item Larger inputs require increasing the static sizes, which significantly increases the number of constraints and computational complexity.
+    \item Testing larger certificates is challenging on limited hardware due to the exponential growth of constraint size.
+\end{itemize}
+
+\subsubsection*{Extra Input Columns}
+In circuits like Pratt and ECPP, additional input columns were introduced to simplify checks and reduce redundancy.
+
+\textbf{Added Inputs in Pratt}:
+\begin{itemize}
+    \item \textbf{Factors}: Precomputed prime factors of \( n-1 \).
+    \item \textbf{Exponents}: Corresponding exponents \( \frac{n-1}{\text{factor}_i} \) for modular checks.
+\end{itemize}
+
+\textbf{Added Inputs in ECPP}:
+\begin{itemize}
+    \item Elliptic curve parameters \( a \) and \( b \).
+    \item Coordinates \( (x, y) \) of a point on the curve.
+    \item Order \( m \) of the point, precomputed for efficiency.
+\end{itemize}
+
+\textbf{Benefits}:
+\begin{itemize}
+    \item Simplified verification by offloading complex computations to preprocessing.
+    \item Reduced the overall number of constraints in the circuit by leveraging precomputed values.
+\end{itemize}
+
+\subsubsection*{Non-Zero Constraints}
+Dynamic conditions, such as \( \text{if factor} \neq 0 \), are not directly supported in Circom. To handle this, additional signals were introduced to enforce binary constraints.
+
+\textbf{Why This Was Necessary}:
+\begin{itemize}
+    \item To ensure that unused slots in arrays (e.g., unused factors) do not affect the computation.
+    \item To meet Circom's requirement of explicitly defining all signal constraints.
+\end{itemize}
+
+\subsection*{Testing and Practical Considerations}
+
+\subsubsection*{Testing on Smaller Inputs}
+Due to system constraints, all circuits were tested on small primes and elliptic curve parameters. For example:
+\begin{itemize}
+    \item In Pratt, \( n-1 \) was factored into at most 5 primes.
+    \item In ECPP, elliptic curve parameters were selected for small primes (e.g., \( p = 23 \), \( p = 29 \)).
+\end{itemize}
+
+\textbf{Limitations}:
+\begin{itemize}
+    \item Larger primes require higher values for \texttt{maxFactors} and \texttt{maxPrimes}, which increases computational cost.
+    \item Proof generation time grows significantly with larger certificates due to the increased number of constraints.
+\end{itemize}
+
+\subsubsection*{Proof Generation Complexity}
+\begin{itemize}
+    \item Increasing \texttt{maxFactors} and \texttt{maxPrimes} results in quadratic growth in constraint size.
+    \item For ECPP, elliptic curve validation adds additional modular operations, further increasing computational cost.
+\end{itemize}
+
+\subsubsection*{Key Learnings and Future Improvements}
+\begin{itemize}
+    \item Explore dynamic sizing techniques in Circom to handle varying numbers of factors and primes.
+    \item Optimize modular arithmetic and elliptic curve operations for larger inputs.
+    \item Parallelize circuits to leverage multicore hardware for constraint computation.
+\end{itemize}
+
+\subsection*{Conclusion}
+
+The Circom implementations for Pratt and ECPP are functional for small inputs but require significant optimization for large-scale applications. These circuits provide a foundation for further research and development in cryptographic primality testing. Future contributions are encouraged to improve efficiency, scalability, and compatibility for real-world use cases.
+
+
+
+\end{document}
+
+
+
