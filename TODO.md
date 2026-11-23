@@ -84,10 +84,10 @@ on their own sample inputs.
   - `experiments/noir_rabin_miller_256`: 256-bit Rabin-Miller with `RuntimeBigNum`, 10 bases = 750,671 gates, prove 3.4 s / 1.3 GB, verify 10 ms. **Circom's single-field-element design caps at 125 bits** (951,448 constraints at that width).
   - Weaker assurance than the Circom work: 4 assertion mutants survive the 256-bit tests (2 necessary ones are justified by an exhaustive small-size model, 2 are provably redundant). See `bench/RESULTS.md` section 4.
 - [x] **Decision: Noir** for items 6 and 7 (chosen 2026-11-23). Circom caps at 125 bits; Noir reaches 256 bits with ~19x larger proofs.
-- [ ] **Adopt in the build (extends item 10):** compile with `--O2`; prove with rapidsnark; use hash-verified Hermez ptau files instead of `powersoftau new` (the official hosts are dead: see `docs/TOOLCHAIN.md`); no verified 2^17/2^18 source yet, which blocks full-size Pratt/Fermat setups.
+- [x] **Adopt in the build (extends item 10):** DONE in item 10 (the one remaining limit: no verified 2^17/2^18 ceremony source). compile with `--O2`; prove with rapidsnark; use hash-verified Hermez ptau files instead of `powersoftau new` (the official hosts are dead: see `docs/TOOLCHAIN.md`); no verified 2^17/2^18 source yet, which blocks full-size Pratt/Fermat setups.
 - [ ] **Apply the left-to-right idea to the Circom Rabin-Miller** (no explicit d/r decomposition, one hinted equality per base): would shrink it and remove `lib/twoadic.circom`.
-- [ ] Add the Noir tests (`nargo test`, `test_noir.py`, `model_check.py`) to the single test command (item 11).
-- [ ] Report (item 13): add the benchmark tables and the "deterministic bases for 32-bit" note.
+- [x] Add the Noir tests to the single test command (item 11): `make test-noir` runs the noir/ suites and the experiments' tests.
+- [x] Report (item 13): benchmark tables and the "deterministic bases for 32-bit" note added.
 
 ## Suggested order
 Foundation first, because 3 to 7 all depend on it: **1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14**.

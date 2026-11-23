@@ -141,3 +141,6 @@ test-noir:
 	cd noir && NARGO=$${NARGO:-nargo} $(PYTHON) test_chain.py
 	cd noir && NARGO=$${NARGO:-nargo} $(PYTHON) test_semiprime.py
 	cd noir && NARGO=$${NARGO:-nargo} $(PYTHON) test_ecpp.py
+	cd experiments/noir_rabin_miller_32 && $${NARGO:-nargo} test
+	cd experiments/noir_rabin_miller_256 && NARGO=$${NARGO:-nargo} $(PYTHON) test_noir.py
+	cd experiments/noir_rabin_miller_256 && $(PYTHON) model_check.py

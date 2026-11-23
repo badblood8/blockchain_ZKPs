@@ -272,6 +272,10 @@ Test \( n = 561 \) with \( n-1 = 560 = 2^4 \cdot 35 \) and base \( a = 2 \).
     \item Since \( x^{2^r \cdot d} \not\equiv -1 \pmod{561} \) for any \( r \), \( n \) is composite.
 \end{itemize}
 
+\subsection*{Deterministic Bases for Small Numbers}
+
+For numbers below a known bound a fixed set of bases makes the test deterministic: the bases \( 2, 3, 5, 7, 11 \) prove primality for every \( n < 2{,}152{,}302{,}898{,}747 \) (so for every \( 32 \)-bit number), and \( 2, 3, 5, 7 \) suffice below \( 3{,}215{,}031{,}751 \), which is the smallest strong pseudoprime to those four bases (our test suite uses it). For larger numbers fixed bases are not safe against an adversary who chooses \( n \).
+
 \subsection*{Conclusion}
 
 The Rabin-Miller Primality Test is a powerful probabilistic method for primality testing. Its ability to detect nontrivial square roots of 1 modulo \( n \) makes it far more reliable than Fermat and Lehmann tests. While it remains probabilistic, its high accuracy and efficiency make it the preferred choice for practical primality testing, especially in cryptographic applications.
