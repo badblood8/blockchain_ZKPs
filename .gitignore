@@ -5,3 +5,5 @@ build/
 experiments/*/target/
 __pycache__/
 *.pyc
+noir/*/target/
+noir/**/case*.toml
