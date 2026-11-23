@@ -1,2 +1,7 @@
 # Ignore build artifacts
 build/
+
+# Noir / Barretenberg experiment outputs and caches
+experiments/*/target/
+__pycache__/
+*.pyc

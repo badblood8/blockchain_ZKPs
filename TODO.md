@@ -98,5 +98,19 @@ on their own sample inputs.
 - [ ] **14. `zkp_final_report.pdf` is stale.** Rebuild from `main.tex` after item 13, and ignore LaTeX aux files in `.gitignore`.
 - [ ] **15. Repo hygiene.** Commits use two git identities. Minor, and optional to fix (`.mailmap`).
 
+## E. Toolchain / proof-system upgrade (option C, done 2026-11-23; see `bench/RESULTS.md`, `docs/TOOLCHAIN.md`)
+- [x] Measured old vs new toolchain on the same circuits (`bench/bench_groth16.py`, raw data in `bench/results/`).
+  - circom 2.2.3 / snarkjs 0.7.6: **no** proving-speed gain (1.65 s either way). circom 2.2.x needs `--O2` (default `--O1` adds 3,564 linear constraints).
+  - **rapidsnark 0.0.8: ~12x faster proving (1.65 s -> 0.13 s) and ~17x less memory (1.2 GB -> 68 MB)**, same keys/circuits.
+- [x] Noir 1.0.0 + Barretenberg 6.0.0 (UltraHonk) experiments, both tested adversarially:
+  - `experiments/noir_rabin_miller_32`: faithful 32-bit port. 22,126 gates, prove 0.15 s / 81 MB, proof 14.7 KB (vs Groth16 ~0.8 KB), no per-circuit setup.
+  - `experiments/noir_rabin_miller_256`: 256-bit Rabin-Miller with `RuntimeBigNum`, 10 bases = 750,671 gates, prove 3.4 s / 1.3 GB, verify 10 ms. **Circom's single-field-element design caps at 125 bits** (951,448 constraints at that width).
+  - Weaker assurance than the Circom work: 4 assertion mutants survive the 256-bit tests (2 necessary ones are justified by an exhaustive small-size model, 2 are provably redundant). See `bench/RESULTS.md` section 4.
+- [ ] **Decision needed: Noir or Circom for items 6 (ECPP) and 7 (N = p*q)?** Circom caps at 125 bits; Noir reaches 256 bits but proofs are ~19x larger and the code base would split in two languages.
+- [ ] **Adopt in the build (extends item 10):** compile with `--O2`; prove with rapidsnark; use hash-verified Hermez ptau files instead of `powersoftau new` (the official hosts are dead: see `docs/TOOLCHAIN.md`); no verified 2^17/2^18 source yet, which blocks full-size Pratt/Fermat setups.
+- [ ] **Apply the left-to-right idea to the Circom Rabin-Miller** (no explicit d/r decomposition, one hinted equality per base): would shrink it and remove `lib/twoadic.circom`.
+- [ ] Add the Noir tests (`nargo test`, `test_noir.py`, `model_check.py`) to the single test command (item 11).
+- [ ] Report (item 13): add the benchmark tables and the "deterministic bases for 32-bit" note.
+
 ## Suggested order
 Foundation first, because 3 to 7 all depend on it: **1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14**.
