@@ -126,6 +126,7 @@ test: test-python
 test-python:
 	$(PYTHON) tests/test_scripts.py
 	$(PYTHON) tests/test_pratt.py GeneratorTests
+	$(PYTHON) tests/model_check_rm.py
 	$(PYTHON) noir/prime_chain/model_check.py 800
 	$(PYTHON) noir/ecpp_chain/test_reference.py
 

@@ -31,7 +31,7 @@ on their own sample inputs.
   - Constraint counts: Fermat 110,399, Lehmann 44,189.
   - Open point: these tests need a Fermat/Lehmann run per case (~1 s each), so the suite takes about a minute. Item 11 should wire it into one `make test`.
 - [x] **4. Rabin-Miller circuit and input are both wrong.** DONE.
-  - **Input fixed by design:** `d` and `r` are no longer inputs. The circuit derives them as hints and constrains them (`lib/twoadic.circom`, `CheckTwoAdicDecomposition`): one-hot selector for r, `n-1 = d * 2^r`, `d` odd, so (d, r) is unique and an even n has no witness. `inputs/rabin_miller.json` is now just `n` and the bases (it used to describe n=561 while claiming n=491).
+  - **Input fixed by design:** `d` and `r` are no longer inputs. (History: first a constrained decomposition `n-1 = d * 2^r`, `d` odd; later replaced by the left-to-right design, see the last checklist items. The notes below on tests and mutations describe that intermediate version.) `inputs/rabin_miller.json` is now just `n` and the bases (it used to describe n=561 while claiming n=491).
   - **Rewritten without the exp-2 chain:** squarings use `ModMul` directly, with the round mask `[j < r]` as a linear function of the selector. 217,464 -> 64,972 constraints, with 10 bases instead of 5.
   - **Extra bug found:** the old loop started at `j = 1`, so `a^d == n-1` (j = 0, the most common way a prime passes) never counted as a pass. Fixed and covered by `test_x0_equal_n_minus_1_counts`.
   - Removed the `maxRounds` parameter (it is now derived: `nBits - 1`, the largest r any n can have). `main` is `(10 bases, 32 bits)`, so the old comment/code mismatch is gone.
@@ -73,7 +73,7 @@ on their own sample inputs.
 - [x] **12. README.** DONE: rewritten from scratch. Results table, both stacks (Circom reference, Noir), method table with status, requirements, Makefile and Noir usage, test targets, an explicit limitations section, layout. The mangled `\text` is gone. The stale Circom ECPP circuit and its input were removed (it could not satisfy its own input; ECPP now lives in `noir/ecpp_chain`).
 - [x] **13. `main.tex` has wrong worked examples.** DONE (all checked numerically): Fermat 561 (3^560 = 375, not 1), Lehmann 341 (3^170 = 67, not 340), Pratt 23 (2 is not a valid base; uses 5, with the per-prime-base remark), and the ECPP section was wrong in substance (it required the point order to equal n-1): rewritten with the real Atkin-Goldwasser-Kilian theorem, a proof sketch, pseudocode and a worked n = 10007 example. The circuit sections describe the final sound design; new sections: toolchain evaluation, Pocklington criterion and the Noir circuits with results, and an honest limitations section.
 - [x] **14. `zkp_final_report.pdf` is stale.** DONE: rebuilt from `main.tex` (14 pages, no undefined references). The 2024 version remains in git history. LaTeX aux files are now ignored.
-- [ ] **15. Repo hygiene.** Commits use two git identities. Minor, and optional to fix (`.mailmap`).
+- [x] **15. Repo hygiene.** DONE. Commits used two git identities; `.mailmap` maps both to `RAGHAVA MAHANTHI <rm24@iitbbs.ac.in>` (`git shortlog -sne` now shows one author; history is not rewritten). Change the canonical name in `.mailmap` if you prefer the other.
 
 ## E. Toolchain / proof-system upgrade (option C, done 2026-11-23; see `bench/RESULTS.md`, `docs/TOOLCHAIN.md`)
 - [x] Measured old vs new toolchain on the same circuits (`bench/bench_groth16.py`, raw data in `bench/results/`).
@@ -85,7 +85,7 @@ on their own sample inputs.
   - Weaker assurance than the Circom work: 4 assertion mutants survive the 256-bit tests (2 necessary ones are justified by an exhaustive small-size model, 2 are provably redundant). See `bench/RESULTS.md` section 4.
 - [x] **Decision: Noir** for items 6 and 7 (chosen 2026-11-23). Circom caps at 125 bits; Noir reaches 256 bits with ~19x larger proofs.
 - [x] **Adopt in the build (extends item 10):** DONE in item 10 (the one remaining limit: no verified 2^17/2^18 ceremony source). compile with `--O2`; prove with rapidsnark; use hash-verified Hermez ptau files instead of `powersoftau new` (the official hosts are dead: see `docs/TOOLCHAIN.md`); no verified 2^17/2^18 source yet, which blocks full-size Pratt/Fermat setups.
-- [ ] **Apply the left-to-right idea to the Circom Rabin-Miller** (no explicit d/r decomposition, one hinted equality per base): would shrink it and remove `lib/twoadic.circom`.
+- [x] **Apply the left-to-right idea to the Circom Rabin-Miller:** DONE. No d/r decomposition, one hinted equality per base; 64,972 -> 42,561 constraints (same 2^16 domain, so snarkjs proving time is unchanged; key 37 -> 27 MB, memory 1.2 -> ~0.8 GB). `lib/twoadic.circom` and `CheckTwoAdicDecomposition` are gone (`twoAdicValuation` moved to `lib/bits.circom`, still used by Pratt). Tests: 12 in `RabinMillerTests` + the exhaustive constraint model `tests/model_check_rm.py` (in `make test`). See `bench/RESULTS.md` section 7.
 - [x] Add the Noir tests to the single test command (item 11): `make test-noir` runs the noir/ suites and the experiments' tests.
 - [x] Report (item 13): benchmark tables and the "deterministic bases for 32-bit" note added.
 

@@ -57,7 +57,8 @@ Same statement, same 10 bases, 32-bit n, a faithful port (`experiments/noir_rabi
 * Noir wins on setup: no per-circuit ceremony and no 37 MB proving key.
 * The circuit shrinks 3x mainly because Noir has native range-checked `u64` arithmetic. That is a
   language advantage, not a backend one: my Circom library pays ~4k^2 constraints per modular
-  exponentiation for bit-decomposition range checks. A smarter Circom design could narrow the gap.
+  exponentiation for bit-decomposition range checks. A smarter Circom design could narrow the gap
+  (section 7: a left-to-right Rabin-Miller removes 34 % of the constraints).
 * Default `bb prove` output is zero-knowledge (target `noir-recursive`, Poseidon2); the `-no-zk` targets
   are explicit opt-ins (verified: the no-ZK verifier rejects the default proof; 14,656 B vs 13,120 B).
 
@@ -138,6 +139,31 @@ All of `noir/`, same machine, zero-knowledge UltraHonk proofs of 15 KB, verified
 * Trade-off: Pocklington requires the prover to have *generated* the primes with the chain structure (provable
   primes); ECPP can certify a prime issued by someone else.
 * Evidence and gaps for each circuit: `noir/README.md` ("How much to trust each part").
+
+## 7. Left-to-right Circom Rabin-Miller (same statement, redesigned circuit)
+
+The circuit was redesigned after section 1 (`circom/rabin_miller.circom`): the bits of n-1 are processed from the top,
+so no decomposition n-1 = d*2^r is needed, the prover only hints one boolean and one position per base, and each base
+costs one equality check (the technique of `experiments/noir_rabin_miller_256`). Same statement (10 public bases,
+n = 982451653), same machine, circom 2.2.3 `--O2`, snarkjs 0.7.6, the same 2^16 ceremony file.
+
+| | before (sections 1-6) | left-to-right |
+|---|---|---|
+| R1CS constraints | 64,972 | **42,561** (-34 %) |
+| per-circuit setup | 47 s | 46 s |
+| proving key (zkey) | 37 MB | 27 MB |
+| prove, snarkjs (3 runs) | 1.65 s | 1.5 - 2.05 s (no gain) |
+| prove peak memory, snarkjs | 1.2 GB | 0.72 - 0.93 GB |
+| prove, rapidsnark (3 runs) | 0.13 s | 0.11 - 0.13 s |
+| prove peak memory, rapidsnark | 68 MB | 57 MB |
+| verify (snarkjs) | 0.21 s | 0.22 s |
+
+Reading: 34 % fewer constraints, a smaller key and less memory, but **no faster proving**: both sizes lie in the same
+2^16 FFT domain, so the dominant FFT cost does not change (below 2^15 = 32,768 constraints it would). The timings are
+`/usr/bin/time` single-machine runs of the prover alone (the section 1 numbers came from `bench_groth16.py`), so
+differences of 10-20 % are noise. Soundness evidence: `tests/test_primality.py::RabinMillerTests` (12 tests incl.
+witness-tamper tests on the hinted wires) and the exhaustive constraint model `tests/model_check_rm.py`, in which
+dropping any of "n odd", "idx <= r", "one-hot idx" or "2 <= a <= n-2" admits composites, and allowing position 0 changes nothing.
 
 ## Reproduce
 

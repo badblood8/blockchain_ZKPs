@@ -204,8 +204,8 @@ class RabinMillerTests(PrimalityBase, unittest.TestCase):
     NAME, K = "rabin_miller", RM_K
     PSEUDOPRIME = 2047         # 23 * 89, strong pseudoprime to base 2 only
     ref = staticmethod(rabin_miller_ref)
-    TAMPER_RE = (r"\.(acc\[\d+\]|passed\[\d+\]|hit\[\d+\]|d|pow2r|sel\[\d+\]|"
-                 r"isOne\[\d+\]\.(out|inv)|hitAcc\[\d+\]\[\d+\]|isNm1\[\d+\]\[\d+\]\.(out|inv)|x\[\d+\]\[\d+\])$")
+    TAMPER_RE = (r"^main\.(u\[\d+\]|cand\[\d+\]|sIdx\[\d+\]|sR\[\d+\]|idx\[\d+\]\[\d+\]|"
+                 r"x\[\d+\]\[\d+\]|m\[\d+\]\[\d+\]|z\[\d+\]|atR\[\d+\])$")
 
     def pass_and_fail_base(self):
         assert rabin_miller_ref(2047, [2]) and not rabin_miller_ref(2047, [3])
@@ -252,9 +252,9 @@ class RabinMillerTests(PrimalityBase, unittest.TestCase):
         self.assertTrue(hits, "need a base with a^d == n-1 for this test")
         self.assertTrue(self.accepts(n, pad(hits, self.K, hits[0])))
 
-    def test_tamper_decomposition(self):
-        """d, pow2r and the one-hot selector cannot be changed to another consistent-looking value."""
-        n = 65537                   # n-1 = 2^16, d = 1, r = 16
+    def test_tamper_hints_and_bit_wires(self):
+        """The hinted u / idx wires, the z / atR bit logic and the running powers x cannot be nudged."""
+        n = 65537                   # n-1 = 2^16, d = 1, r = 16: every z[i] for i <= 16 is 1
         ok, w = self.harness.witness({"n": n, "a": pad([3], self.K, 3)})
         self.assertTrue(ok)
         vals = read_wtns(w)[0]
@@ -264,19 +264,24 @@ class RabinMillerTests(PrimalityBase, unittest.TestCase):
                 label, var, comp, name = line.strip().split(",", 3)
                 if int(var) >= 0:
                     names[name] = int(var)
-        # (pow2r is folded into a linear combination by the optimizer, so it has no wire of its own)
-        # (likewise sel[maxR] may be substituted away by "sum of sel == 1")
-        wires = [names["main.test.d"]] + [names[f"main.test.sel[{j}]"] for j in (1, 15, 16, 17, 30)
-                                          if f"main.test.sel[{j}]" in names]
-        self.assertGreaterEqual(len(wires), 5)
+        wanted = ["main.u[0]", "main.u[9]", "main.z[1]", "main.z[16]", "main.z[17]", "main.atR[16]",
+                  "main.idx[0][1]", "main.idx[0][16]", "main.idx[0][17]", "main.idx[9][5]",
+                  "main.x[0][0]", "main.x[0][16]", "main.x[0][31]", "main.sIdx[0]", "main.sR[0]", "main.cand[0]"]
+        wires = [names[nm] for nm in wanted if nm in names]
+        self.assertGreaterEqual(len(wires), 12)
         survivors = []
         for wire in wires:
             for delta in (1, -1):
-                t = os.path.join(self.harness.dir, f"dec_{wire}_{delta}.wtns")
+                t = os.path.join(self.harness.dir, f"hint_{wire}_{delta}.wtns")
                 write_tampered(w, t, wire, vals[wire] + delta)
                 if self.harness.check(t):
                     survivors.append((wire, delta))
-        self.assertEqual(survivors, [], f"decomposition wires tampered but constraints still hold: {survivors}")
+        self.assertEqual(survivors, [], f"tampered hint wires still satisfy the constraints: {survivors}")
+
+    def test_composite_has_no_witness_for_any_hint(self):
+        """For strong pseudoprimes to the chosen bases only the bases that are liars pass; others must fail."""
+        self.assertFalse(self.accepts(2047, pad([2, 3], self.K, 2)))    # 3 is a witness for 2047
+        self.assertTrue(self.accepts(2047, pad([2], self.K, 2)))        # 2 is a strong liar for 2047
 
 
 if __name__ == "__main__":

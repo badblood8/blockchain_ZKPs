@@ -23,8 +23,8 @@ Apple M2 (8 cores), one run of each configuration; all Noir proofs are zero-know
 | public 512-bit **N = p·q**, private distinct 256-bit primes | Pocklington chains (Noir) | 70,982 | **0.41 s** | 248 MB |
 | public 256-bit n is prime | Pocklington chain (Noir) | 38,147 | 0.24 s | 131 MB |
 | public 64-bit n is prime | real ECPP (Noir) | 121,036 | 0.6 s | 350 MB |
-| 32-bit n, Rabin-Miller with 10 bases | Circom + rapidsnark | 64,972 | 0.13 s | 68 MB |
-| same | Circom + snarkjs | 64,972 | 1.65 s | 1.2 GB |
+| 32-bit n, Rabin-Miller with 10 bases | Circom + rapidsnark | 42,561 | 0.12 s | 57 MB |
+| same | Circom + snarkjs | 42,561 | 1.5 - 2 s | 0.7 - 0.9 GB |
 
 Details, the other circuits and the caveats: [`bench/RESULTS.md`](bench/RESULTS.md). Reference documents:
 [`main.tex`](main.tex) / [`zkp_final_report.pdf`](zkp_final_report.pdf) (the report), [`noir/README.md`](noir/README.md)

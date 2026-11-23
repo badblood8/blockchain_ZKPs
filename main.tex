@@ -477,7 +477,7 @@ Every top-level circuit asserts \texttt{isPrime} $=1$, so a composite has no val
 
 \textbf{Fermat and Lehmann.} Per-base results are chained with $\mathrm{acc}_{i+1} = \mathrm{acc}_i \cdot \mathrm{result}_i$ from $\mathrm{acc}_0 = 1$. (The first version never multiplied in the result of the first base, so $a_0$ was not tested.)
 
-\textbf{Rabin-Miller.} The decomposition $n-1 = d\cdot 2^r$ is derived inside the circuit and fully constrained: $r$ is one-hot encoded, $n - 1 = d \cdot 2^r$ and $d$ is odd, which pins $(d,r)$ uniquely, so a malicious prover cannot choose another decomposition (which would silently turn the test into the weaker Lehmann test). Squarings use \texttt{ModMul} directly. The first version never counted $a^d \equiv n-1$ as a pass (its loop started at $j=1$), and its sample input described $n = 561$ while claiming $n = 491$. The circuit shrank from $217{,}464$ to $64{,}972$ constraints while using ten bases instead of five.
+\textbf{Rabin-Miller.} No decomposition $n-1 = d\cdot 2^r$ is computed. With $e = n-1$ the circuit processes the bits of $e$ from the top, so after bit $i$ it holds $s_i = a^{\lfloor e/2^i\rfloor} \bmod n$; if $r$ is the number of trailing zero bits of $e$, then $s_r = a^d$ and $s_{r-j} = a^{d2^j}$, so a base passes iff $s_r = 1$ or $s_i = n-1$ for some $1 \le i \le r$. The indicator ``$i \le r$'' is $z_i = \prod_{t<i}(1-e_t)$, read off the bits of $n$. The prover only hints a boolean $u$ (``$s_r = 1$'') and a one-hot position; the circuit selects $s_{\mathrm{idx}}$ and $s_r$ with linear combinations and checks \emph{one} equality per base, $(u\,?\,s_r : s_{\mathrm{idx}}) = (u\,?\,1 : n-1)$. The constraints that matter are: $n$ is odd, $\mathrm{idx}\le r$, $\mathrm{idx}$ one-hot, and $2 \le a \le n-2$; an exhaustive model of the constraint set (all $n,a<2^8$ and all hints) shows that each admits composites when deleted, and that the case $i=0$ is redundant. Squarings use \texttt{ModMul} directly. The first version never counted $a^d \equiv n-1$ as a pass (its loop started at $j=1$), and its sample input described $n = 561$ while claiming $n = 491$. The circuit shrank from $217{,}464$ constraints (first version, five bases) to $64{,}972$ (explicit decomposition, ten bases) to $42{,}561$ (left-to-right, ten bases).
 
 \textbf{Pratt.} A certificate is a list of entries $(p_i, g_i, q_{i,0},\dots,q_{i,F-1})$ with $p_i - 1 = 2^s \prod_l q_{i,l}$ (checked as an exact integer equality). Each entry has its own base $g_i$ with $g_i^{(p_i-1)/2} \not\equiv 1$, $g_i^{p_i-1} \equiv 1$ and $g_i^{(p_i-1)/q}\not\equiv 1$ for every distinct odd factor $q$ (a derived ``same as previous'' flag, so a check cannot be skipped). Every non-padding $q$ must equal the prime of some entry. Because $q$ divides $p_i - 1$ it is smaller than $p_i$, so induction on the value of the primes proves every entry prime and no cycle check is needed. Unused entries are padded with the valid entry $(3, 2)$. Only $n$ is public; the certificate is private witness. The sample certificate of the first version was also incomplete: $3$, $7$ and $17$ appeared as factors without entries.
 
@@ -490,7 +490,7 @@ Circuit (32-bit $n$) & Instance & Constraints & First version (unsound) \\
 \hline
 Fermat & 25 bases & 110{,}399 & 6{,}448 \\
 Lehmann & 10 bases & 44{,}189 & 2{,}598 \\
-Rabin-Miller & 10 bases & 64{,}972 & 6{,}414 (5 bases) \\
+Rabin-Miller & 10 bases & 42{,}561 & 6{,}414 (5 bases) \\
 Pratt & 9 entries, 4 factors & 198{,}828 & 10{,}799 \\
 \hline
 \end{tabular}

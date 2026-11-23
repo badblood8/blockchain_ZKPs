@@ -5,6 +5,21 @@ pragma circom 2.0.6;
 // All templates here are fully constrained: no output is assigned with `<--`
 // without a matching constraint.
 
+// Witness-only helper (used inside `<--` hints; every result is re-constrained by the caller):
+// number of times 2 divides x (0 for x == 0).
+function twoAdicValuation(x) {
+    var r = 0;
+    var t = x;
+    if (t == 0) {
+        return 0;
+    }
+    while (t % 2 == 0) {
+        t = t \ 2;
+        r++;
+    }
+    return r;
+}
+
 // Num2Bits(n): out = little-endian bits of `in`.
 // Enforces 0 <= in < 2^n.  Requires n <= 253 so that the weighted sum of the
 // bits cannot wrap around the BN128 scalar field (p ~ 2^253.6).

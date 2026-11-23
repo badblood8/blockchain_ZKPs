@@ -1,7 +1,6 @@
 pragma circom 2.0.6;
 
 include "modarith.circom";
-include "twoadic.circom";
 
 // Pratt primality certificates (Lucas' converse of Fermat's little theorem):
 //
