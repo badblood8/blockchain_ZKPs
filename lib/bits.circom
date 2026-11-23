@@ -43,3 +43,27 @@ template AssertLessThan(k) {
     component diff = Num2Bits(k);
     diff.in <== b - a - 1;
 }
+
+// IsZero: out = 1 if in == 0, else 0.  `out` is genuinely boolean:
+//   in != 0  =>  out = 1 - in*inv = 0  (inv = 1/in)
+//   in == 0  =>  out = 1
+// and the constraint in*out === 0 stops a prover from claiming out = 1 for in != 0.
+template IsZero() {
+    signal input in;
+    signal output out;
+    signal inv;
+
+    inv <-- in != 0 ? 1 / in : 0;
+    out <== 1 - in * inv;
+    in * out === 0;
+}
+
+// IsEqual: out = 1 if in[0] == in[1], else 0.
+template IsEqual() {
+    signal input in[2];
+    signal output out;
+
+    component isz = IsZero();
+    isz.in <== in[1] - in[0];
+    out <== isz.out;
+}

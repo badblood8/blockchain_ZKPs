@@ -2,51 +2,52 @@ pragma circom 2.0.6;
 
 include "../lib/modarith.circom";
 
-// Lehmann Primality Test
+// Lehmann primality test: n passes iff n is odd and, for every base a[i] with
+// 2 <= a[i] <= n-2,
+//     a[i]^((n-1)/2) == 1  or  == n-1   (mod n).
+// n even makes (n-1)/2 a non-integer field element, which the exponent range
+// check inside ModExp rejects, so even n has no valid witness.
+// isPrime is the product of the k per-base indicator bits (1 only if every base,
+// including a[0], passes).
 template LehmannPrimalityTest(k, nBits) {
-    signal input n;              // The number to be tested for primality
-    signal input a[k];           // Array of random bases for testing
-    signal output isPrime;       // Output: 1 if likely prime, 0 if composite
-    signal exponentResults[k];   // Results of modular exponentiations
-    signal lehmannResults[k];    // Intermediate Lehmann test results for each base
-    signal isPrimeCheck[k];      // Accumulated prime check at each stage
+    assert(k >= 1);
+    signal input n;
+    signal input a[k];
+    signal output isPrime;
 
-    // Declare components for modular exponentiation
+    component baseRange[k];
     component modExp[k];
-
-    // Initialize isPrimeCheck[0] to 1 (assuming the number is prime)
-    isPrimeCheck[0] <== 1;
-
-    // Predeclare isOne and isNMinusOne signals outside the loop
-    signal isOne[k];
-    signal isNMinusOne[k];
+    component isOne[k];
+    component isNMinusOne[k];
+    signal baseOk[k];
+    signal acc[k + 1];
+    acc[0] <== 1;
 
     for (var i = 0; i < k; i++) {
+        baseRange[i] = AssertBaseInRange(nBits);
+        baseRange[i].a <== a[i];
+        baseRange[i].n <== n;
+
         modExp[i] = ModExp(nBits);
         modExp[i].base <== a[i];
-        modExp[i].exp <== (n - 1) / 2; // Set the exponent to (n-1)/2 for Lehmann test
+        modExp[i].exp <== (n - 1) / 2;
         modExp[i].mod <== n;
 
-        // Store the result of each modular exponentiation
-        exponentResults[i] <== modExp[i].result;
+        isOne[i] = IsEqual();
+        isOne[i].in[0] <== modExp[i].result;
+        isOne[i].in[1] <== 1;
 
-        // Check if exponentResults[i] == 1
-        isOne[i] <== 1 - (exponentResults[i] - 1) * (exponentResults[i] - 1);
+        isNMinusOne[i] = IsEqual();
+        isNMinusOne[i].in[0] <== modExp[i].result;
+        isNMinusOne[i].in[1] <== n - 1;
 
-        // Check if exponentResults[i] == (n - 1)
-        isNMinusOne[i] <== 1 - (exponentResults[i] - (n - 1)) * (exponentResults[i] - (n - 1));
+        // logical OR of two booleans
+        baseOk[i] <== isOne[i].out + isNMinusOne[i].out - isOne[i].out * isNMinusOne[i].out;
 
-        // Set lehmannResults[i] to 1 if either isOne or isNMinusOne is true (logical OR)
-        lehmannResults[i] <== isOne[i] + isNMinusOne[i] - isOne[i] * isNMinusOne[i];
-
-        // Calculate isPrimeCheck[i] based on isPrimeCheck[i-1] and lehmannResults[i]
-        if (i > 0) {
-            isPrimeCheck[i] <== isPrimeCheck[i - 1] * lehmannResults[i];
-        }
+        acc[i + 1] <== acc[i] * baseOk[i];
     }
 
-    // Set final output isPrime based on the last value of isPrimeCheck
-    isPrime <== isPrimeCheck[k - 1];
+    isPrime <== acc[k];
 }
 
 // Top-level circuit: the proof exists only if every base passes (isPrime == 1).

@@ -2,41 +2,42 @@ pragma circom 2.0.6;
 
 include "../lib/modarith.circom";
 
-// Fermat Primality Test
+// Fermat primality test: n passes iff, for every base a[i] with 2 <= a[i] <= n-2,
+//     a[i]^(n-1) == 1 (mod n).
+// isPrime is the product of the k per-base indicator bits, so it is 1 only if
+// EVERY base (including a[0]) passes.
+// A pass is probabilistic evidence of primality only: Carmichael numbers pass
+// for every base coprime to them.
 template FermatPrimalityTest(k, nBits) {
-    signal input n;              // The number to be tested for primality
-    signal input a[k];           // Array of random bases for testing
-    signal output isPrime;       // Output: 1 if likely prime, 0 if composite
-    signal exponentResults[k];   // Results of modular exponentiations
-    signal fermatResults[k];     // Intermediate Fermat test results for each base
-    signal isPrimeCheck[k];      // Accumulated prime check at each stage
+    assert(k >= 1);
+    signal input n;
+    signal input a[k];
+    signal output isPrime;
 
-    // Declare components for modular exponentiation
+    component baseRange[k];
     component modExp[k];
-
-    // Initialize isPrimeCheck[0] to 1 (assuming the number is prime)
-    isPrimeCheck[0] <== 1;
+    component isOne[k];
+    signal acc[k + 1];          // acc[i] = AND of the first i per-base results
+    acc[0] <== 1;
 
     for (var i = 0; i < k; i++) {
+        baseRange[i] = AssertBaseInRange(nBits);
+        baseRange[i].a <== a[i];
+        baseRange[i].n <== n;
+
         modExp[i] = ModExp(nBits);
         modExp[i].base <== a[i];
         modExp[i].exp <== n - 1;
         modExp[i].mod <== n;
 
-        // Store the result of each modular exponentiation
-        exponentResults[i] <== modExp[i].result;
+        isOne[i] = IsEqual();
+        isOne[i].in[0] <== modExp[i].result;
+        isOne[i].in[1] <== 1;
 
-        // Set fermatResults[i] to 1 if exponentResults[i] == 1, otherwise 0
-        fermatResults[i] <== 1 - (exponentResults[i] - 1) * (exponentResults[i] - 1);
-
-        // Calculate isPrimeCheck[i] based on isPrimeCheck[i-1] and fermatResults[i]
-        if (i > 0) {
-            isPrimeCheck[i] <== isPrimeCheck[i - 1] * fermatResults[i];
-        }
+        acc[i + 1] <== acc[i] * isOne[i].out;
     }
 
-    // Set final output isPrime based on the last value of isPrimeCheck
-    isPrime <== isPrimeCheck[k - 1];
+    isPrime <== acc[k];
 }
 
 // Top-level circuit: the proof exists only if every base passes (isPrime == 1).

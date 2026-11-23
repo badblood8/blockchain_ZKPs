@@ -98,3 +98,19 @@ template ModExp(k) {
 
     result <== res[k];
 }
+
+// AssertBaseInRange(k): enforces 2 <= a <= n-2, the valid range of a witness
+// base for Fermat / Lehmann / Rabin-Miller.  Bases 0 and 1 (and n-1) would pass
+// the tests vacuously, so they must not count as evidence of primality.
+// Consequence: n must be at least 5 for any valid base to exist.
+// PRECONDITION: n < 2^k  (ModExp enforces this on the same n).
+template AssertBaseInRange(k) {
+    signal input a;
+    signal input n;
+
+    component atLeast2 = AssertBits(k);        // a - 2 in [0, 2^k)  =>  a >= 2
+    atLeast2.in <== a - 2;
+    component belowNMinus1 = AssertLessThan(k); // a < n - 1
+    belowNMinus1.a <== a;
+    belowNMinus1.b <== n - 1;
+}

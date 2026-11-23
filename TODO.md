@@ -21,10 +21,15 @@ on their own sample inputs.
   - The `*PrimalityTest` / `*CertificateVerifier` templates still output `isPrime`, so they stay composable (item 7).
   - **Side effect:** Rabin-Miller, Pratt and ECPP now refuse their own sample inputs (previously they silently output garbage). That is correct and exposes items 4 to 6.
   - Still unconstrained (`<--`) and left for the items that rewrite them: Rabin-Miller `conditionSignals`, `isNMinusOne`; Pratt `nonZeroFactor`, `factorChecks`; ECPP `y2`, `x3PlusAxPlusB`, `nonZeroFactor`.
-- [ ] **3. Fermat / Lehmann equality checks are not boolean.** `1 - (x-1)^2` is only 0/1 when x is 0 or 2.
-  - Verified: Fermat with n=100 outputs a ~250-bit number instead of 0.
-  - Fix: `IsEqual` / `IsZero` gadgets.
-  - **Found while doing items 1 and 2:** in `fermat` and `lehmann`, `isPrimeCheck[0] <== 1` is never multiplied by the first base's result, so `a[0]` is never actually tested (the loop only updates `i > 0`). Fix by chaining `acc[i+1] <== acc[i] * result[i]` from `acc[0] = 1`.
+- [x] **3. Fermat / Lehmann equality checks are not boolean.** DONE.
+  - Added `IsZero` / `IsEqual` to `lib/bits.circom` (genuinely 0/1; forging the opposite answer is rejected, see `test_iszero_isequal`).
+  - Fermat and Lehmann now use them, and combine per-base results as `acc[i+1] = acc[i] * result[i]` from `acc[0] = 1`.
+  - **Also fixed the skipped first base** found during items 1-2: `a[0]` was never tested. `tests/test_primality.py` puts the only witness at position 0, 1, middle and last and requires rejection at each.
+  - **Bases must satisfy 2 <= a <= n-2** (`AssertBaseInRange`). Previously a base of 0, 1 or n-1 passed vacuously. Consequence: n = 2 and 3 can't be proven (no valid base exists), and n >= 5 is required. Document this in the README (item 12).
+  - Tests (`tests/test_primality.py`, 12 tests, runs the real circuits): differential random testing against a Python reference, known primes/composites up to 4294967291, even and tiny n, vacuous bases, and tampering with named internal wires.
+  - Mutation check: against the previous commit's circuits, all 4 regression tests fail, so they have teeth.
+  - Constraint counts: Fermat 110,399, Lehmann 44,189.
+  - Open point: these tests need a Fermat/Lehmann run per case (~1 s each), so the suite takes about a minute. Item 11 should wire it into one `make test`.
 - [ ] **4. Rabin-Miller circuit and input are both wrong.**
   - `inputs/rabin_miller.json` has n=491 with d=35, r=4. That is the decomposition of 560 (n=561), not 490 = 2·245.
   - The circuit squares with `exp <== 2` through a chain of components, so `r` is not enforced as a loop bound.

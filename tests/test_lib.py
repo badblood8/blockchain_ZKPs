@@ -91,6 +91,7 @@ class LibTests(unittest.TestCase):
         cls.tmp = tempfile.mkdtemp(prefix="zkp_libtest_")
         cls.modexp = CircuitHarness(os.path.join(ROOT, "tests/lib/modexp_test.circom"), cls.tmp)
         cls.modmul = CircuitHarness(os.path.join(ROOT, "tests/lib/modmul_test.circom"), cls.tmp)
+        cls.iseq = CircuitHarness(os.path.join(ROOT, "tests/lib/iseq_test.circom"), cls.tmp)
 
     @classmethod
     def tearDownClass(cls):
@@ -150,6 +151,24 @@ class LibTests(unittest.TestCase):
             self.assertTrue(ok)
             self.assertEqual(read_wtns(w)[0][1], (a * b) % n)
             self.assertTrue(self.modmul.check(w))
+
+    # ---------- IsZero / IsEqual: outputs are strictly 0 or 1 and forgery is rejected
+    def test_iszero_isequal(self):
+        cases = [(0, 0), (1, 1), (5, 7), (7, 5), (0, 1), (FIELD_P - 1, FIELD_P - 1),
+                 (FIELD_P - 1, 1), (2**200, 2**200 + 1), (123456789, 123456789)]
+        for x, y in cases:
+            ok, w = self.iseq.witness({"x": x, "y": y})
+            self.assertTrue(ok)
+            vals = read_wtns(w)[0]
+            self.assertEqual(vals[1], 1 if x == y else 0, f"IsEqual({x},{y})")
+            self.assertEqual(vals[2], 1 if x == 0 else 0, f"IsZero({x})")
+            self.assertTrue(self.iseq.check(w))
+            # forging the opposite answer must be rejected
+            forged = os.path.join(self.tmp, "iseq_forged.wtns")
+            write_tampered(w, forged, 1, 1 - vals[1])
+            self.assertFalse(self.iseq.check(forged), f"forged IsEqual({x},{y}) accepted")
+            write_tampered(w, forged, 2, 1 - vals[2])
+            self.assertFalse(self.iseq.check(forged), f"forged IsZero({x}) accepted")
 
     # ---------- Soundness: tamper with single wires
     def _tamper_all(self, harness, inputs, n_wires, label):
