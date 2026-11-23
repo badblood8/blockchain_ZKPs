@@ -1,0 +1,89 @@
+# Unfinished work checklist
+
+Audit date: 2026-11-23, branch `fix/complete-unfinished-work`.
+Method: compiled all 6 circuits with circom 2.1.9, generated witnesses from `inputs/*.json`,
+read the `isPrime` output wire, ran the Python tests, rebuilt `main.tex`, and checked the report's
+worked examples numerically.
+
+Baseline: all circuits compile and produce witnesses. Only `multiply`, `fermat` (n=101) and `lehmann`
+(n=101) return a sensible output. `rabin_miller`, `pratt` and `ecpp` return garbage field elements
+on their own sample inputs.
+
+## A. Circuits that give wrong answers
+- [x] **1. Shared `ModularExponentiation` is unsound.** DONE.
+  - New `lib/bits.circom` and `lib/modarith.circom` (`Num2Bits`, `AssertLessThan`, `ModMul`, `ModExp`) replace the 5 copy-pasted versions.
+  - Every wire is constrained: `a*b = q*n + r` with `q < 2^k`, `r < n`. Verified by `tests/test_lib.py`, which tampers with random witness wires and requires the R1CS to reject each one.
+  - Mutation check: the same tamper test run against the OLD modexp accepted a forged result (it let you "prove" 5^22 mod 23 = 0).
+  - **Limit:** a single-field-element design caps values at **125 bits** (`k <= 125`), not 256. Wider moduli need multi-limb bignum arithmetic. The circuits are now instantiated at 32 bits (primes up to 4294967291). Supporting 64 or 125 bits is only a parameter change, but constraint counts grow as about 4k² per exponentiation.
+  - **Cost:** circuits are far bigger now (Fermat 6,448 → 108,773 constraints; Lehmann 2,598 → 43,528), which is the price of actually constraining the arithmetic. Makefile `POT_LEVEL`s were raised to fit; item 10 should compute them.
+- [x] **2. `isPrime` is never constrained to 1.** DONE.
+  - Every circuit now has a top-level wrapper (`FermatVerifier`, `LehmannVerifier`, `RabinMillerVerifier`, `PrattVerifier`, `ECPPMain`) that asserts `isPrime === 1`. A composite input now has no valid witness. Checked on primes and composites (101, 997, 982451653, 4294967291 pass; 100, 1001, 561, 982451654, 4294967295 rejected).
+  - The `*PrimalityTest` / `*CertificateVerifier` templates still output `isPrime`, so they stay composable (item 7).
+  - **Side effect:** Rabin-Miller, Pratt and ECPP now refuse their own sample inputs (previously they silently output garbage). That is correct and exposes items 4 to 6.
+  - Still unconstrained (`<--`) and left for the items that rewrite them: Rabin-Miller `conditionSignals`, `isNMinusOne`; Pratt `nonZeroFactor`, `factorChecks`; ECPP `y2`, `x3PlusAxPlusB`, `nonZeroFactor`.
+- [ ] **3. Fermat / Lehmann equality checks are not boolean.** `1 - (x-1)^2` is only 0/1 when x is 0 or 2.
+  - Verified: Fermat with n=100 outputs a ~250-bit number instead of 0.
+  - Fix: `IsEqual` / `IsZero` gadgets.
+  - **Found while doing items 1 and 2:** in `fermat` and `lehmann`, `isPrimeCheck[0] <== 1` is never multiplied by the first base's result, so `a[0]` is never actually tested (the loop only updates `i > 0`). Fix by chaining `acc[i+1] <== acc[i] * result[i]` from `acc[0] = 1`.
+- [ ] **4. Rabin-Miller circuit and input are both wrong.**
+  - `inputs/rabin_miller.json` has n=491 with d=35, r=4. That is the decomposition of 560 (n=561), not 490 = 2·245.
+  - The circuit squares with `exp <== 2` through a chain of components, so `r` is not enforced as a loop bound.
+  - `nMinusOneAcc` is a sum, not a boolean.
+  - `main` is `(5,128,10)` but the comment says 10 bases / 256 bits.
+- [ ] **5. Pratt design is mathematically wrong.**
+  - One global `base` (2) is used for every prime in the chain. 2 is not a primitive root mod 2168827, 1933 or 23, so those steps cannot pass. Needs a per-prime witness base.
+  - `certPrimes[0]` is not tied to `mainPrime`.
+  - Padding entries (prime = 0) go through `% 0`.
+  - The factor-to-prime link is missing: nothing checks that each `factors[i]` appears in `certPrimes`, or that the factors multiply out to p-1.
+  - Output is garbage on its own input.
+- [ ] **6. ECPP circuit is not ECPP.**
+  - No elliptic-curve point arithmetic, no check that `m*P = O`, no check on `q*P` for the large factor q.
+  - `isOrderValid = 1 - x^order^2` is inverted (it is 0 when the result is 1).
+  - `inputs/ecpp.json` is 5 unrelated curves against one prime (10177), with no recursion down to a small prime.
+  - Output is garbage on its own input.
+- [ ] **7. `multiply` does not reach the project goal (N = p·q, p and q prime).**
+  - There is no primality check on p or q, and no `p, q > 1` range check (so 1·N passes).
+  - N is an output but p and q are private: nothing composes with the primality circuits.
+  - Inputs are quoted strings.
+  - Need a combined circuit.
+
+## B. Missing / empty files
+- [ ] **8. `scripts/ecpp.py` and `scripts/pratt.py` are empty (0 bytes).**
+  - Need an ECPP certificate generator that emits `inputs/ecpp.json`.
+  - Need to fold the standalone generator into `pratt.py`, or delete the stub.
+- [ ] **9. Input generation and tests.**
+  - Only Pratt has a generator. Fermat / Lehmann / Rabin-Miller / ECPP inputs are hand-written.
+  - The Pratt generator has no tests, hardcodes 8675309, and runs on import.
+  - The `fermat.py` test class sits above the function it tests.
+  - `n <= 0` is mishandled in Fermat and Lehmann.
+  - No negative tests: no composite input has ever been run through a circuit.
+
+## C. Build / tooling
+- [ ] **10. Makefiles.**
+  - Six near-identical copies (they differ only in name and POT level).
+  - All share one `build/` dir, so `witness.wtns`, `proof.json` and the zkeys collide between circuits.
+  - Powers of tau is regenerated on every run (slow).
+  - The entropy string is hardcoded.
+  - `clean` leaves ptau files behind.
+  - Commit messages say "verification time" was added, but `verify` has no timing.
+  - POT levels were set by hand.
+- [ ] **11. No dependency or test entry points.** No `requirements.txt` (sympy), no `package.json`, no circomlib decision, no single `make test`, no CI.
+
+## D. Docs and report
+- [ ] **12. README.**
+  - `\text` was mangled into a tab character (`	ext{mod}`).
+  - Usage only covers Pratt and ECPP.
+  - Prerequisites are missing (circom 2.1.x, snarkjs, node, sympy).
+  - Claims scripts exist for ECPP certificates (empty files).
+  - No results table.
+- [ ] **13. `main.tex` has wrong worked examples** (verified numerically).
+  - Fermat: it claims 3^560 ≡ 1 (mod 561). It is 375, so base 3 rejects 561.
+  - Lehmann: it claims 3^170 ≡ 340 (mod 341). It is 67, so 341 is rejected.
+  - Pratt: it claims 2^11 ≢ 1 (mod 23). It is 1, so base 2 is invalid for 23 (use 5).
+  - ECPP: the n=11 example conflates the curve order with n-1, and the report's "p = 23, 29" tests do not match `ecpp.json` (10177).
+  - The report has no results section at all (constraints, proving time, proof size, verification time), though that was the point of the last commits.
+- [ ] **14. `zkp_final_report.pdf` is stale.** Rebuild from `main.tex` after item 13, and ignore LaTeX aux files in `.gitignore`.
+- [ ] **15. Repo hygiene.** Commits use two git identities. Minor, and optional to fix (`.mailmap`).
+
+## Suggested order
+Foundation first, because 3 to 7 all depend on it: **1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14**.

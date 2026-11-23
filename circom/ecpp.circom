@@ -1,45 +1,6 @@
 pragma circom 2.0.6;
 
-// Template to convert an integer into its binary representation
-template Num2Bits(n) {
-    signal input in;
-    signal output out[n];
-    var lc1 = 0;
-
-    for (var i = 0; i < n; i++) {
-        out[i] <-- (in >> i) & 1;
-        out[i] * (out[i] - 1) === 0; // Ensure binary
-        lc1 += out[i] * 2**i;
-    }
-
-    lc1 === in;
-}
-
-// Template for Modular Exponentiation using Repeated Squaring
-template ModularExponentiation(nBits) {
-    signal input base;
-    signal input exp;
-    signal input mod;
-    signal output result;
-
-    component expBits = Num2Bits(nBits);
-    expBits.in <== exp;
-
-    signal tmpResults[nBits + 1];
-    signal currentBases[nBits + 1];
-    signal applyMultiplier[nBits];
-
-    tmpResults[0] <== 1;
-    currentBases[0] <== base;
-
-    for (var i = 0; i < nBits; i++) {
-        applyMultiplier[i] <-- expBits.out[i] == 1 ? currentBases[i] : 1;
-        tmpResults[i + 1] <-- (tmpResults[i] * applyMultiplier[i]) % mod;
-        currentBases[i + 1] <-- (currentBases[i] * currentBases[i]) % mod;
-    }
-
-    result <== tmpResults[nBits];
-}
+include "../lib/modarith.circom";
 
 // Elliptic Curve Validation
 template EllipticCurveValidation(nBits) {
@@ -81,7 +42,7 @@ template VerifyECPPStep(nBits, maxFactors) {
     curveValidation.prime <== prime;
 
     // Step 2: Validate the order of the point using modular exponentiation
-    component modExpMain = ModularExponentiation(nBits);
+    component modExpMain = ModExp(nBits);
     modExpMain.base <== pointX;
     modExpMain.exp <== order;
     modExpMain.mod <== prime;
@@ -101,7 +62,7 @@ template VerifyECPPStep(nBits, maxFactors) {
     signal tmpFactorCheck[maxFactors];
 
     for (var i = 0; i < maxFactors; i++) {
-        modExpFactor[i] = ModularExponentiation(nBits);
+        modExpFactor[i] = ModExp(nBits);
         modExpFactor[i].base <== base;
         modExpFactor[i].exp <== exps[i];
         modExpFactor[i].mod <== prime;
@@ -124,7 +85,9 @@ template VerifyECPPStep(nBits, maxFactors) {
     }
 
     // Combine all checks
-    isPrime <-- curveValidation.isValid * isOrderValid * accumulator[maxFactors];
+    signal stepCheck;
+    stepCheck <== curveValidation.isValid * isOrderValid;
+    isPrime <== stepCheck * accumulator[maxFactors];
 }
 
 // ECPP Verifier Main Template
@@ -165,5 +128,29 @@ template ECPPVerifier(nBits, maxPrimes, maxFactors) {
     isPrime <== recursiveCheck[maxPrimes - 1];
 }
 
-// Instantiate Main Circuit
-component main {public [mainPrime, base, curveA, curveB, pointX, pointY, order, factors, exps]} = ECPPVerifier(256, 5, 5);
+// Top-level circuit: the proof exists only if every step checks (isPrime == 1).
+template ECPPMain(nBits, maxPrimes, maxFactors) {
+    signal input mainPrime;
+    signal input base;
+    signal input curveA[maxPrimes];
+    signal input curveB[maxPrimes];
+    signal input pointX[maxPrimes];
+    signal input pointY[maxPrimes];
+    signal input order[maxPrimes];
+    signal input factors[maxPrimes][maxFactors];
+    signal input exps[maxPrimes][maxFactors];
+
+    component cert = ECPPVerifier(nBits, maxPrimes, maxFactors);
+    cert.mainPrime <== mainPrime;
+    cert.base <== base;
+    cert.curveA <== curveA;
+    cert.curveB <== curveB;
+    cert.pointX <== pointX;
+    cert.pointY <== pointY;
+    cert.order <== order;
+    cert.factors <== factors;
+    cert.exps <== exps;
+    cert.isPrime === 1;
+}
+
+component main {public [mainPrime, base, curveA, curveB, pointX, pointY, order, factors, exps]} = ECPPMain(32, 5, 5);

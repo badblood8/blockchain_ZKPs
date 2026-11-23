@@ -1,56 +1,6 @@
 pragma circom 2.0.6;
 
-// Template to convert an integer into its binary representation
-template Num2Bits(n) {
-    signal input in;
-    signal output out[n];
-    var lc1 = 0;
-
-    for (var i = 0; i < n; i++) {
-        out[i] <-- (in >> i) & 1;
-        out[i] * (out[i] - 1) === 0;
-        lc1 += out[i] * 2**i;
-    }
-
-    lc1 === in;
-}
-
-// Template for Modular Exponentiation using Repeated Squaring
-template ModularExponentiation(nBits) {
-    signal input base;
-    signal input exp;
-    signal input mod;
-    signal output result;
-
-    // Convert the exponent to binary bits using Num2Bits
-    component expBits = Num2Bits(nBits);
-    expBits.in <== exp;
-
-    // Declare and initialize signals for intermediate steps outside of the loop
-    signal tmpResults[nBits + 1];
-    signal currentBases[nBits + 1];
-    signal applyMultiplier[nBits];
-
-    // Initialize initial conditions
-    tmpResults[0] <== 1;           // Initial result is 1
-    currentBases[0] <== base;       // Start base is the input base
-
-    for (var i = 0; i < nBits; i++) {
-        // Step 1: Set applyMultiplier based on expBits.out[i]
-        applyMultiplier[i] <-- expBits.out[i] == 1 ? currentBases[i] : 1;
-
-        // Step 2: Multiply tmpResults by applyMultiplier conditionally
-        tmpResults[i + 1] <-- (tmpResults[i] * applyMultiplier[i]) % mod;
-
-        // Step 3: Square the base for the next iteration
-        currentBases[i + 1] <-- (currentBases[i] * currentBases[i]) % mod;
-    }
-
-    // Assign the final result
-    result <== tmpResults[nBits];
-}
-
-
+include "../lib/modarith.circom";
 
 // Fermat Primality Test
 template FermatPrimalityTest(k, nBits) {
@@ -68,7 +18,7 @@ template FermatPrimalityTest(k, nBits) {
     isPrimeCheck[0] <== 1;
 
     for (var i = 0; i < k; i++) {
-        modExp[i] = ModularExponentiation(nBits);
+        modExp[i] = ModExp(nBits);
         modExp[i].base <== a[i];
         modExp[i].exp <== n - 1;
         modExp[i].mod <== n;
@@ -89,7 +39,15 @@ template FermatPrimalityTest(k, nBits) {
     isPrime <== isPrimeCheck[k - 1];
 }
 
+// Top-level circuit: the proof exists only if every base passes (isPrime == 1).
+template FermatVerifier(k, nBits) {
+    signal input n;
+    signal input a[k];
 
+    component test = FermatPrimalityTest(k, nBits);
+    test.n <== n;
+    test.a <== a;
+    test.isPrime === 1;
+}
 
-// Instantiate FermatPrimalityTest with 3 random bases and 256-bit exponentiation
-component main {public [n, a]} = FermatPrimalityTest(25, 256);
+component main {public [n, a]} = FermatVerifier(25, 32);

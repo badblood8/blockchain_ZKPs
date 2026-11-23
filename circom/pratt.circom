@@ -1,45 +1,6 @@
 pragma circom 2.0.6;
 
-// Template to convert an integer into its binary representation
-template Num2Bits(n) {
-    signal input in;
-    signal output out[n];
-    var lc1 = 0;
-
-    for (var i = 0; i < n; i++) {
-        out[i] <-- (in >> i) & 1;
-        out[i] * (out[i] - 1) === 0;
-        lc1 += out[i] * 2**i;
-    }
-
-    lc1 === in;
-}
-
-// Modular Exponentiation using the fixed template provided
-template ModularExponentiation(nBits) {
-    signal input base;
-    signal input exp;
-    signal input mod;
-    signal output result;
-
-    component expBits = Num2Bits(nBits);
-    expBits.in <== exp;
-
-    signal tmpResults[nBits + 1];
-    signal currentBases[nBits + 1];
-    signal applyMultiplier[nBits];
-
-    tmpResults[0] <== 1;
-    currentBases[0] <== base;
-
-    for (var i = 0; i < nBits; i++) {
-        applyMultiplier[i] <-- expBits.out[i] == 1 ? currentBases[i] : 1;
-        tmpResults[i + 1] <-- (tmpResults[i] * applyMultiplier[i]) % mod;
-        currentBases[i + 1] <-- (currentBases[i] * currentBases[i]) % mod;
-    }
-
-    result <== tmpResults[nBits];
-}
+include "../lib/modarith.circom";
 
 // Template to verify a single step in the Pratt certificate
 template VerifyPrattStep(nBits, maxFactors) {
@@ -49,7 +10,7 @@ template VerifyPrattStep(nBits, maxFactors) {
     signal input exps[maxFactors];
     signal output isPrime;
 
-    component modExpMain = ModularExponentiation(nBits);
+    component modExpMain = ModExp(nBits);
     modExpMain.base <== base;
     modExpMain.exp <== prime - 1;
     modExpMain.mod <== prime;
@@ -69,7 +30,7 @@ template VerifyPrattStep(nBits, maxFactors) {
         // Define nonZeroFactor[i] as a binary signal using quadratic constraints
         nonZeroFactor[i] <-- 1 - (factors[i] * factors[i] == 0 ? 1 : 0);
 
-        modExpFactor[i] = ModularExponentiation(nBits);
+        modExpFactor[i] = ModExp(nBits);
         modExpFactor[i].base <== base;
         modExpFactor[i].exp <== exps[i];
         modExpFactor[i].mod <== prime;
@@ -116,4 +77,21 @@ template PrattCertificateVerifier(nBits, maxPrimes, maxFactors) {
     isPrime <== recursiveCheck[maxPrimes - 1];
 }
 
-component main {public [mainPrime, base, certPrimes, certFactors, precomputedExps]} = PrattCertificateVerifier(256, 6, 6);
+// Top-level circuit: the proof exists only if the whole certificate checks (isPrime == 1).
+template PrattVerifier(nBits, maxPrimes, maxFactors) {
+    signal input mainPrime;
+    signal input base;
+    signal input certPrimes[maxPrimes];
+    signal input certFactors[maxPrimes][maxFactors];
+    signal input precomputedExps[maxPrimes][maxFactors];
+
+    component cert = PrattCertificateVerifier(nBits, maxPrimes, maxFactors);
+    cert.mainPrime <== mainPrime;
+    cert.base <== base;
+    cert.certPrimes <== certPrimes;
+    cert.certFactors <== certFactors;
+    cert.precomputedExps <== precomputedExps;
+    cert.isPrime === 1;
+}
+
+component main {public [mainPrime, base, certPrimes, certFactors, precomputedExps]} = PrattVerifier(32, 6, 6);

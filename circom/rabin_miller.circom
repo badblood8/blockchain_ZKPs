@@ -1,45 +1,6 @@
 pragma circom 2.0.6;
 
-// Template to convert an integer into its binary representation
-template Num2Bits(n) {
-    signal input in;
-    signal output out[n];
-    var lc1 = 0;
-
-    for (var i = 0; i < n; i++) {
-        out[i] <-- (in >> i) & 1;
-        out[i] * (out[i] - 1) === 0;
-        lc1 += out[i] * 2**i;
-    }
-
-    lc1 === in;
-}
-
-// Template for Modular Exponentiation using Repeated Squaring
-template ModularExponentiation(nBits) {
-    signal input base;
-    signal input exp;
-    signal input mod;
-    signal output result;
-
-    component expBits = Num2Bits(nBits);
-    expBits.in <== exp;
-
-    signal tmpResults[nBits + 1];
-    signal currentBases[nBits + 1];
-    signal applyMultiplier[nBits];
-
-    tmpResults[0] <== 1;
-    currentBases[0] <== base;
-
-    for (var i = 0; i < nBits; i++) {
-        applyMultiplier[i] <-- expBits.out[i] == 1 ? currentBases[i] : 1;
-        tmpResults[i + 1] <-- (tmpResults[i] * applyMultiplier[i]) % mod;
-        currentBases[i + 1] <-- (currentBases[i] * currentBases[i]) % mod;
-    }
-
-    result <== tmpResults[nBits];
-}
+include "../lib/modarith.circom";
 
 // Rabin-Miller Primality Test
 template RabinMillerPrimalityTest(k, nBits, maxRounds) {
@@ -68,7 +29,7 @@ template RabinMillerPrimalityTest(k, nBits, maxRounds) {
     }
 
     for (var i = 0; i < k; i++) {
-        modExp[i] = ModularExponentiation(nBits);
+        modExp[i] = ModExp(nBits);
         modExp[i].base <== a[i];
         modExp[i].exp <== d;
         modExp[i].mod <== n;
@@ -81,7 +42,7 @@ template RabinMillerPrimalityTest(k, nBits, maxRounds) {
         powerResults[i][0] <== exponentResults[i];
 
         for (var j = 1; j < maxRounds; j++) {
-            powerModExp[i][j - 1] = ModularExponentiation(nBits);
+            powerModExp[i][j - 1] = ModExp(nBits);
             powerModExp[i][j - 1].base <== powerResults[i][j - 1];
             powerModExp[i][j - 1].exp <== 2;
             powerModExp[i][j - 1].mod <== n;
@@ -100,5 +61,19 @@ template RabinMillerPrimalityTest(k, nBits, maxRounds) {
     isPrime <== isPrimeCheck[k - 1];
 }
 
-// Instantiate RabinMillerPrimalityTest with 10 bases and 256-bit exponentiation, max 20 rounds
-component main {public [n, a]} = RabinMillerPrimalityTest(5, 128, 10);
+// Top-level circuit: the proof exists only if every base passes (isPrime == 1).
+template RabinMillerVerifier(k, nBits, maxRounds) {
+    signal input n;
+    signal input a[k];
+    signal input d;
+    signal input r;
+
+    component test = RabinMillerPrimalityTest(k, nBits, maxRounds);
+    test.n <== n;
+    test.a <== a;
+    test.d <== d;
+    test.r <== r;
+    test.isPrime === 1;
+}
+
+component main {public [n, a]} = RabinMillerVerifier(5, 32, 10);
