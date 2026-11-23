@@ -81,26 +81,34 @@ def lst(vs, hexfmt=True):
     return "[" + ", ".join(fmt(v) if hexfmt else f'"{v}"' for v in vs) + "]"
 
 
-def prover_toml(chain):
+def chain_fields(chain):
+    """Fields of the Chain256 struct (everything except the top-level n), as TOML value strings."""
     n16, n32, n64, n128, n256 = chain
     y256, inv256 = step_witness(n256, n128)
     y128, inv128 = step_witness(n128, n64)
     y64, inv64 = step_witness(n64, n32)
     y32, inv32 = step_witness(n32, n16)
-    out = [
-        f"n = {lst(limbs(n256, 3))}",
-        f"redc256 = {lst(redc(n256, 256, 3))}",
-        f"y256 = {lst(limbs(y256, 3))}",
-        f"inv256 = {lst(limbs(inv256, 3))}",
-        f"n128 = {lst(limbs(n128, 2))}",
-        f"redc128 = {lst(redc(n128, 128, 2))}",
-        f"y128 = {lst(limbs(y128, 2))}",
-        f"inv128 = {lst(limbs(inv128, 2))}",
-        f'n64 = "{n64}"', f'y64 = "{y64}"', f'inv64 = "{inv64}"',
-        f'n32 = "{n32}"', f'y32 = "{y32}"', f'inv32 = "{inv32}"',
-        f'n16 = "{n16}"',
-    ]
-    return "\n".join(out) + "\n"
+    return {
+        "redc256": lst(redc(n256, 256, 3)),
+        "y256": lst(limbs(y256, 3)),
+        "inv256": lst(limbs(inv256, 3)),
+        "n128": lst(limbs(n128, 2)),
+        "redc128": lst(redc(n128, 128, 2)),
+        "y128": lst(limbs(y128, 2)),
+        "inv128": lst(limbs(inv128, 2)),
+        "n64": f'"{n64}"', "y64": f'"{y64}"', "inv64": f'"{inv64}"',
+        "n32": f'"{n32}"', "y32": f'"{y32}"', "inv32": f'"{inv32}"',
+        "n16": f'"{n16}"',
+    }
+
+
+def render_table(name, fields):
+    return f"[{name}]\n" + "\n".join(f"{k} = {v}" for k, v in fields.items()) + "\n"
+
+
+def prover_toml(chain):
+    """Prover.toml for prime_chain: top-level n, then the [c] table."""
+    return f"n = {lst(limbs(chain[-1], 3))}\n\n" + render_table("c", chain_fields(chain))
 
 
 if __name__ == "__main__":

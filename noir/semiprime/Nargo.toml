@@ -1,0 +1,9 @@
+[package]
+name = "semiprime"
+type = "bin"
+authors = [""]
+compiler_version = ">=1.0.0"
+
+[dependencies]
+zkp_primality = { path = "../zkp_primality" }
+bignum = { tag = "v0.11.0", git = "https://github.com/noir-lang/noir-bignum" }

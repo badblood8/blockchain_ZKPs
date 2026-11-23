@@ -22,11 +22,15 @@ KEEP = ("zkp_primality", "prime_chain")
 
 
 def parse(toml):
-    return dict(re.findall(r'^(\w+) = (.*)$', toml, re.M))
+    """-> (top-level dict, table-c dict) from the Prover.toml produced by gen_chain."""
+    head, _, table = toml.partition("[c]\n")
+    top = dict(re.findall(r'^(\w+) = (.*)$', head, re.M))
+    c = dict(re.findall(r'^(\w+) = (.*)$', table, re.M))
+    return top, c
 
 
-def render(d):
-    return "\n".join(f"{k} = {v}" for k, v in d.items()) + "\n"
+def render(top, c):
+    return "\n".join(f"{k} = {v}" for k, v in top.items()) + "\n\n[c]\n" + "\n".join(f"{k} = {v}" for k, v in c.items()) + "\n"
 
 
 class Chain(unittest.TestCase):
@@ -63,24 +67,24 @@ class Chain(unittest.TestCase):
     # ---------- soundness: composites
     def test_composite_public_n_rejected(self):
         rng = random.Random(1)
-        base = parse(g.prover_toml(self.chains[0]))
+        top, c = parse(g.prover_toml(self.chains[0]))
         for _ in range(4):
             while True:
                 n = rng.getrandbits(256) | (1 << 255) | 1
                 if not sympy.isprime(n):
                     break
-            d = dict(base)
-            d["n"] = g.lst(g.limbs(n, 3))
-            d["redc256"] = g.lst(g.redc(n, 256, 3))
-            self.assertFalse(self.solvable(render(d)), "composite n accepted with the honest lower levels")
+            t, cc = dict(top), dict(c)
+            t["n"] = g.lst(g.limbs(n, 3))
+            cc["redc256"] = g.lst(g.redc(n, 256, 3))
+            self.assertFalse(self.solvable(render(t, cc)), "composite n accepted with the honest lower levels")
         # n+2 / n-2 of a real prime, and 2*prime
         n256 = self.chains[0][-1]
         for n in (n256 + 2, n256 - 2, n256 + 4):
             if not sympy.isprime(n):
-                d = dict(base)
-                d["n"] = g.lst(g.limbs(n, 3))
-                d["redc256"] = g.lst(g.redc(n, 256, 3))
-                self.assertFalse(self.solvable(render(d)), f"composite {n} accepted")
+                t, cc = dict(top), dict(c)
+                t["n"] = g.lst(g.limbs(n, 3))
+                cc["redc256"] = g.lst(g.redc(n, 256, 3))
+                self.assertFalse(self.solvable(render(t, cc)), f"composite {n} accepted")
 
     def test_composite_at_each_lower_level_rejected(self):
         """Swap level i for a composite of the same size, keeping the rest of the data."""
@@ -95,30 +99,30 @@ class Chain(unittest.TestCase):
             bad = list(chain)
             bad[level] = comp
             # best-effort witnesses: y = honest-looking element, inverse when it exists
-            toml = parse(g.prover_toml(chain))
+            top, cc = parse(g.prover_toml(chain))
             names = {1: "n32", 2: "n64", 3: "n128"}
             if level == 3:
-                toml["n128"] = g.lst(g.limbs(comp, 2))
-                toml["redc128"] = g.lst(g.redc(comp, 128, 2))
+                cc["n128"] = g.lst(g.limbs(comp, 2))
+                cc["redc128"] = g.lst(g.redc(comp, 128, 2))
             else:
-                toml[names[level]] = f'"{comp}"'
-            self.assertFalse(self.solvable(render(toml)), f"composite at level {level} accepted")
+                cc[names[level]] = f'"{comp}"'
+            self.assertFalse(self.solvable(render(top, cc)), f"composite at level {level} accepted")
 
     def test_tampered_witnesses_rejected(self):
-        base = parse(g.prover_toml(self.chains[2]))
+        top, c = parse(g.prover_toml(self.chains[2]))
         for key in ("y256", "inv256", "y128", "inv128", "y64", "inv64", "y32", "inv32"):
-            d = dict(base)
-            v = d[key]
+            cc = dict(c)
+            v = cc[key]
             if v.startswith("["):
                 items = re.findall(r'"(0x[0-9a-f]+)"', v)
                 items[0] = hex(int(items[0], 16) ^ 1)
-                d[key] = "[" + ", ".join(f'"{i}"' for i in items) + "]"
+                cc[key] = "[" + ", ".join(f'"{i}"' for i in items) + "]"
             else:
-                d[key] = f'"{int(v.strip(chr(34))) ^ 1}"'
-            self.assertFalse(self.solvable(render(d)), f"tampered {key} accepted")
+                cc[key] = f'"{int(v.strip(chr(34))) ^ 1}"'
+            self.assertFalse(self.solvable(render(top, cc)), f"tampered {key} accepted")
 
     def test_wrong_size_or_even_rejected(self):
-        base = parse(g.prover_toml(self.chains[0]))
+        top, c = parse(g.prover_toml(self.chains[0]))
         n256 = self.chains[0][-1]
         cases = {
             "even n": n256 + 1,
@@ -126,16 +130,16 @@ class Chain(unittest.TestCase):
             "n = 1": 1,
         }
         for label, n in cases.items():
-            d = dict(base)
-            d["n"] = g.lst(g.limbs(n, 3))
-            self.assertFalse(self.solvable(render(d)), f"{label} accepted")
+            t = dict(top)
+            t["n"] = g.lst(g.limbs(n, 3))
+            self.assertFalse(self.solvable(render(t, c)), f"{label} accepted")
 
     def test_bad_base_case_rejected(self):
-        base = parse(g.prover_toml(self.chains[0]))
+        top, c = parse(g.prover_toml(self.chains[0]))
         for n16 in (63001, 255, 1, 256 * 3):          # 251^2, 255, 1, composite
-            d = dict(base)
-            d["n16"] = f'"{n16}"'
-            self.assertFalse(self.solvable(render(d)), f"n16={n16} accepted")
+            cc = dict(c)
+            cc["n16"] = f'"{n16}"'
+            self.assertFalse(self.solvable(render(top, cc)), f"n16={n16} accepted")
 
 
 if __name__ == "__main__":

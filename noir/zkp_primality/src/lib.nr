@@ -11,3 +11,4 @@
 // deterministically: no error probability and no Fiat-Shamir grinding.
 pub mod native;
 pub mod pocklington;
+pub mod chain256;
