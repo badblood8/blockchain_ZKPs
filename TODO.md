@@ -39,12 +39,16 @@ on their own sample inputs.
   - **Mutation checks:** (A) ignoring `x_0 == n-1` fails 4 tests; (B) removing the "d is odd" check is caught by `test_decomposition_rejects_alternatives` (`d=2, r=15` accepted). The "tamper d by +-1" test alone would NOT have caught (B): a coherent alternative pair silently downgrades the test to Lehmann.
   - **End to end:** real Groth16 proof for n = 982451653: 64,972 constraints, proving 2.0 s, verified OK, 806-byte proof (run with the existing 2^16 ceremony file; `makefile_rabin_miller` POT_LEVEL set to 17 to be safe).
   - Note for the report (item 13): bases {2,3,5,7,11} are *deterministic* for all n < 2,152,302,898,747, so for the 32-bit circuit those five bases turn Rabin-Miller into a proof of primality, not just evidence.
-- [ ] **5. Pratt design is mathematically wrong.**
-  - One global `base` (2) is used for every prime in the chain. 2 is not a primitive root mod 2168827, 1933 or 23, so those steps cannot pass. Needs a per-prime witness base.
-  - `certPrimes[0]` is not tied to `mainPrime`.
-  - Padding entries (prime = 0) go through `% 0`.
-  - The factor-to-prime link is missing: nothing checks that each `factors[i]` appears in `certPrimes`, or that the factors multiply out to p-1.
-  - Output is garbage on its own input.
+- [x] **5. Pratt design is mathematically wrong.** DONE.
+  - **Rewritten** as `lib/pratt.circom` (`PrattEntry`, `PrattVerifier`); `circom/pratt.circom` is just the 32-bit instance (9 entries, 4 odd factors).
+  - Per-prime base `g_i` (a primitive root), exact factorization `p-1 = 2^s * q_0*...*q_{F-1}` (one-hot s, product chain), every non-padding `q` must equal some entry's prime (induction on value: q < p, so no cycle check is needed), `g^((p-1)/2) != 1` with `h^2 = 1`, and `g^((p-1)/q) != 1` for each distinct q (the dedup flag is derived, so a check can't be skipped). `mainPrime === certPrimes[0]`.
+  - Padding is the valid entry (3, g=2, no factors), which removes the old `% 0`.
+  - Only `mainPrime` is public; the certificate is private witness (right shape for composing with N = p*q in item 7).
+  - The old sample certificate was incomplete: 3, 7 and 17 were used as factors but had no entries. Real certificate for 8675309 needs 9 entries.
+  - `scripts/pratt_certificate_generator.py` rewritten (library + CLI + Python reference verifier; no longer runs on import or hardcodes the prime). This covers part of items 8/9.
+  - **Tests** (`tests/test_pratt.py`, 16 tests): valid certificates for many primes, every composite-with-best-certificate tried against EVERY base (none certifies), 12 targeted forgeries (each first checked to be invalid in Python), 45-case mutation fuzzing (circuit == Python reference on every one), wire tampering, and the real 32-bit circuit.
+  - **Mutation checks:** deleting any of 6 soundness constraints is caught (membership, exact factorization, g^((p-1)/q) != 1, mainPrime tie, h != 1, g^(p-1) == 1). One survivor, the partial-product range check: it is only needed when 31 + nBits*F >= 253 (F >= 7 at 32 bits), so it is unreachable at tested sizes. Kept as defense-in-depth (about 165 constraints per entry).
+  - **Size:** 198,828 constraints (needs 2^18 ptau; the full-size end-to-end proof is deferred to item 10, which should build one shared ptau). Small instance (16-bit, 7x5, 50,092 constraints) proven end to end: proving 1.7 s, verifies, 805-byte proof, public signals = just the prime, and the proof is rejected against a different prime.
 - [ ] **6. ECPP circuit is not ECPP.**
   - No elliptic-curve point arithmetic, no check that `m*P = O`, no check on `q*P` for the large factor q.
   - `isOrderValid = 1 - x^order^2` is inverted (it is 0 when the result is 1).

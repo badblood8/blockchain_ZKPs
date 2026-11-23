@@ -74,9 +74,11 @@ class CircuitHarness:
         self.counter += 1
         inp = os.path.join(self.dir, f"in{self.counter}.json")
         out = os.path.join(self.dir, f"w{self.counter}.wtns")
+        def stringify(v):
+            return [stringify(x) for x in v] if isinstance(v, list) else str(v)
+
         with open(inp, "w") as f:
-            json.dump({k: str(v) if not isinstance(v, list) else [str(x) for x in v]
-                       for k, v in inputs.items()}, f)
+            json.dump({k: stringify(v) for k, v in inputs.items()}, f)
         r = run(["node", self.gen, self.wasm, inp, out])
         return (r.returncode == 0 and os.path.exists(out)), out
 
