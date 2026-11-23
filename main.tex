@@ -7,7 +7,7 @@
 
 \title{Zero Knowledge Proofs for Various Primality Tests}
 \author{Dr.Pratik Soni, Raghava, Mahanthi}
-\date{}
+\date{First version November 2024; revised November 2026}
 
 \begin{document}
 
@@ -93,20 +93,12 @@ The Fermat test outperforms trial division for numbers larger than \( 10^6 \). W
 
 \subsection*{Example}
 
-Test \( n = 561 \) with bases \( a = 2 \) and \( a = 3 \).
-
+Test \( n = 561 = 3 \cdot 11 \cdot 17 \), the smallest Carmichael number, with several bases (all values checked by computer):
 \begin{itemize}
-    \item Compute \( 2^{560} \mod 561 \):
-    \[
-    2^{560} \equiv 1 \pmod{561}
-    \]
-    \item Compute \( 3^{560} \mod 561 \):
-    \[
-    3^{560} \equiv 1 \pmod{561}
-    \]
+    \item \( 2^{560} \equiv 1 \pmod{561} \) and \( 5^{560} \equiv 1 \pmod{561} \): both bases pass, although \( 561 \) is composite.
+    \item \( 3^{560} \equiv 375 \pmod{561} \) and \( 11^{560} \equiv 154 \pmod{561} \): these bases share a factor with \( 561 \) and expose it.
 \end{itemize}
-
-Despite \( 561 \) being composite (it is the smallest Carmichael number), it passes the Fermat test for bases \( a = 2 \) and \( a = 3 \), showcasing the limitation of the test.
+A Carmichael number passes the test for every base coprime to it, so the test only detects \( 561 \) if it happens to draw a base that is \emph{not} coprime to it. This is the limitation that the later tests address.
 
 \subsection*{Conclusion}
 
@@ -182,20 +174,12 @@ If \( a^{(n-1)/2} \not\equiv \pm1 \pmod{n} \), then \( n \) is composite. By tes
 
 \subsection*{Example}
 
-Test \( n = 341 \) with bases \( a = 2 \) and \( a = 3 \).
-
+Test \( n = 341 = 11 \cdot 31 \) (a Fermat pseudoprime to base \( 2 \)); here \( (n-1)/2 = 170 \). All values checked by computer:
 \begin{itemize}
-    \item Compute \( 2^{(341-1)/2} \mod 341 \):
-    \[
-    2^{170} \equiv 1 \pmod{341}
-    \]
-    \item Compute \( 3^{(341-1)/2} \mod 341 \):
-    \[
-    3^{170} \equiv 340 \pmod{341} \quad (\text{which is } n-1)
-    \]
+    \item \( 2^{170} \equiv 1 \pmod{341} \): base \( 2 \) passes.
+    \item \( 3^{170} \equiv 67 \pmod{341} \), which is neither \( 1 \) nor \( 340 \): base \( 3 \) exposes \( 341 \) as composite.
 \end{itemize}
-
-Since both \( 2^{170} \) and \( 3^{170} \) satisfy the Lehmann conditions, \( n = 341 \) is declared "Probably Prime," even though \( n \) is composite (it is a pseudoprime).
+Base \( 2 \) alone declares \( 341 \) ``probably prime''; a second base is enough to reject it.
 
 \subsection*{Conclusion}
 
@@ -365,62 +349,53 @@ The Pratt certificate works recursively: to prove that \( n \) is prime, we must
 
 \subsection*{Example}
 
-Let \( n = 23 \). Then \( n-1 = 22 = 2 \times 11 \). 
-
+Let \( n = 23 \). Then \( n-1 = 22 = 2 \times 11 \). The base must be chosen per prime: \( a = 2 \) is \emph{not} valid for \( 23 \), because \( 2^{11} \equiv 1 \pmod{23} \) (it has order \( 11 \), not \( 22 \)). Take \( a = 5 \):
 \begin{enumerate}
-    \item Choose \( a = 2 \). Compute:
-    \[
-    2^{22} \mod 23 \equiv 1 \pmod{23}
-    \]
-    and
-    \[
-    2^{22/2} = 2^{11} \mod 23 \not\equiv 1 \pmod{23}
-    \]
-    \[
-    2^{22/11} = 2^2 \mod 23 \not\equiv 1 \pmod{23}.
-    \]
-    \item Verify \( p_1 = 2 \) and \( p_2 = 11 \). Both are prime.
+    \item \( 5^{22} \equiv 1 \pmod{23} \), \( 5^{22/2} = 5^{11} \equiv 22 \not\equiv 1 \pmod{23} \) and \( 5^{22/11} = 5^{2} \equiv 2 \not\equiv 1 \pmod{23} \).
+    \item The prime factors are \( 2 \) (trivially prime) and \( 11 \). For \( 11 \): \( n-1 = 10 = 2 \times 5 \) and \( a = 2 \) works, since \( 2^{10} \equiv 1 \), \( 2^{5} \equiv 10 \not\equiv 1 \), \( 2^{2} \equiv 4 \not\equiv 1 \pmod{11} \); its factor \( 5 \) is certified in turn (\( 5 - 1 = 4 = 2^2 \), \( a = 2 \)).
     \item Certificate for \( n = 23 \):
     \[
-    (23, 2, \{(2, 1), (11, 1)\}, \{\text{Certificate for 2}, \text{Certificate for 11}\}).
+    (23, 5, \{2, 11\}, \{(11, 2, \{2, 5\}, \{(5, 2, \{2\})\})\}).
     \]
 \end{enumerate}
+Our first Circom verifier used one global base for every prime in the chain, which cannot work: \( 2 \) is not a valid base for \( 23 \), \( 1933 \) or \( 2168827 \).
 
 \subsection*{Conclusion}
 
 The Pratt Primality Certificate is a deterministic method that rigorously proves the primality of a number. While computationally expensive, its recursive structure provides verifiable proof, making it a useful theoretical tool for understanding primality in cryptography and mathematics.
 
-\section{Elliptic Curve Primality Proving (ECPP)}
+\section{Elliptic Curve Primality Proving (ECPP)}\label{sec:ecpp}
 
 \subsection*{Algorithm Explanation}
 
-The Elliptic Curve Primality Proving (ECPP) algorithm is a deterministic method for proving the primality of a number \( n \). It is based on the properties of elliptic curves over finite fields. The core idea is to construct an elliptic curve \( E \) and a point \( P \) on it, such that the order of \( P \) satisfies certain divisibility properties, proving the primality of \( n \).
+The Elliptic Curve Primality Proving (ECPP) algorithm of Goldwasser--Kilian and Atkin--Morain is a deterministic method that, unlike Pratt, needs no structure in \( n-1 \). It rests on the following theorem.
 
-Key steps:
-1. Choose an elliptic curve \( E: y^2 = x^3 + ax + b \pmod{n} \).
-2. Select a point \( P = (x, y) \) on the curve.
-3. Compute the order of \( P \), denoted \( m \), using \( mP \equiv 0 \pmod{n} \).
-4. Verify that the order \( m = n - 1 \) and satisfies the necessary divisibility conditions.
+\textbf{Theorem.} Let \( n \) be coprime to \( 6 \), let \( E: y^2 = x^3 + ax + b \) be a curve over \( \mathbb{Z}/n\mathbb{Z} \), \( P \) a point on it, \( k \) an integer and \( q \) a prime with \( q > (n^{1/4}+1)^2 \). If \( R = [k]P \) is an \emph{affine} point (every inverse met while computing it exists modulo \( n \)) and \( [q]R = O \), then \( n \) is prime.
+
+\emph{Proof sketch.} Suppose \( n \) were composite and let \( p \) be a prime factor with \( p \le \sqrt{n} \). Reduced modulo \( p \), the point \( R \) is not the point at infinity, but \( [q]R = O \); since \( q \) is prime, \( R \) has order exactly \( q \) on \( E(\mathbb{F}_p) \). By Hasse's bound \( q \le \#E(\mathbb{F}_p) \le (\sqrt{p}+1)^2 \le (n^{1/4}+1)^2 \), contradicting the choice of \( q \). \qed
+
+The group order \( m = \#E \) does not have to equal \( n-1 \) (that is the situation of Pratt's certificate, which uses the \emph{multiplicative} group); it is close to \( n \) by Hasse's bound, and the prover looks for a curve whose order factors as \( m = k \cdot q \) with \( q \) a large prime. The condition \( q > (n^{1/4}+1)^2 > \sqrt{n} \) means each level can at best halve the bit length of \( n \), so a certificate for a \( 64 \)-bit prime has about three levels.
+
+Verification of one level (the certificate is \( (n, a, b, P, k, q) \) plus a certificate for \( q \)):
+\begin{enumerate}
+    \item Check \( \gcd(n,6)=1 \) and that \( P \) lies on \( E \) (the discriminant check turns out to be redundant given the size bound).
+    \item Check \( q > (n^{1/4}+1)^2 \).
+    \item Compute \( R = [k]P \) with the affine group law, checking every inverse; compute \( [q-1]R \) and check that it equals \( -R \), i.e.\ \( [q]R = O \).
+    \item Recursively certify \( q \) (at the bottom, by trial division).
+\end{enumerate}
 
 \subsection*{Pseudocode}
 
-\textbf{Elliptic Curve Primality Proving (ECPP)}
-
-% \texttt{Input: Number \( n \)}  
-% \texttt{Output: A certificate of primality for \( n \)}
+\textbf{ECPP verification of one level}
 
 \begin{quote}\ttfamily
-1. If \( n \leq 1 \), return "Not Prime" \\
-2. Choose an elliptic curve \( E: y^2 = x^3 + ax + b \pmod{n} \). \\
-3. Select a point \( P = (x, y) \) on \( E \). \\
-4. Compute the order \( m \) of \( P \): \\
-\hspace*{2em} a. Use scalar multiplication to compute \( mP \mod n \). \\
-5. Verify that \( m = n - 1 \): \\
-\hspace*{2em} a. Ensure \( mP \equiv 0 \pmod{n} \). \\
-6. Check divisibility conditions: \\
-\hspace*{2em} a. \( m = n - 1 \) is divisible by small primes \( p_i \). \\
-7. Recursively verify the primality of \( p_i \). \\
-8. Return the certificate: \( (n, E, P, m, \text{certificates for } p_i) \).
+1. If \( \gcd(n,6) \neq 1 \), reject \\
+2. Check \( y_P^2 \equiv x_P^3 + a x_P + b \pmod{n} \) \\
+3. Check \( q > (n^{1/4}+1)^2 \) \\
+4. \( R \leftarrow [k]P \) by double-and-add; reject if any inverse does not exist \\
+5. \( Q \leftarrow [q-1]R \) by double-and-add; reject if any inverse does not exist \\
+6. Accept iff \( Q = -R \), i.e. \( [q]R = O \) \\
+7. Recursively verify that \( q \) is prime
 \end{quote}
 
 \subsection*{Advantages}
@@ -450,9 +425,9 @@ Key steps:
 \subsection*{Behavior for Large Numbers}
 
 \begin{itemize}
-    \item The algorithm efficiently handles primes with hundreds of digits.
-    \item Modular arithmetic and elliptic curve operations are optimized for large numbers.
-    \item Recursive primality checks ensure the robustness of the proof.
+    \item Outside a circuit, optimised implementations certify primes with thousands of digits; finding the certificate (point counting) is the expensive part, verifying it is cheap.
+    \item Inside a zero-knowledge circuit verification is far from free: about nine modular multiplications per scalar bit, so a $64$-bit certificate already costs three times a $256$-bit Pocklington proof (Section~\ref{sec:noir}).
+    \item The chain at best halves the bit length per level.
 \end{itemize}
 
 \subsection*{Expected Error}
@@ -464,148 +439,130 @@ Key steps:
 
 \subsection*{Example}
 
-Let \( n = 11 \). To prove \( 11 \) is prime using ECPP:
-
-\begin{enumerate}
-    \item Choose the elliptic curve \( E: y^2 = x^3 + x + 1 \pmod{11} \).
-    \item Select a point \( P = (2, 7) \) on \( E \).
-    \item Compute the order \( m \) of \( P \):
-    \[
-    m = 10 \quad (\text{since } 10P \equiv 0 \pmod{11}).
-    \]
-    \item Verify that \( m = n - 1 \) and \( m \) satisfies divisibility conditions.
-    \item Recursive verification:
-    \begin{itemize}
-        \item Verify \( p_i \) (prime factors of \( m \)).
-        \item Return the certificate:
-        \[
-        (11, E, P, 10, \text{certificates for } p_i).
-        \]
-    \end{itemize}
-\end{enumerate}
+Let \( n = 10007 \). A certificate level (found by random curve search and point counting, then checked by computer) is
+\[
+E: y^2 = x^3 + 1613x + 2151, \quad P = (3025, 8142), \quad k = 50, \quad q = 199 .
+\]
+Here \( 10^4 = 10000 \le n < 11^4 \), so \( r = 10 \) and \( (r+2)^2 = 144 \le q \), which implies \( q > (n^{1/4}+1)^2 \approx 121 \). Then
+\[
+R = [50]P = (211, 7768), \qquad [198]R = (211, 2239) = -R \quad (7768 + 2239 = 10007),
+\]
+so \( [199]R = O \). Since \( 199 \) is prime (trial division), \( n = 10007 \) is prime.
 
 \subsection*{Conclusion}
 
 ECPP is a state-of-the-art primality proving algorithm that combines the power of elliptic curves and modular arithmetic. Its scalability and rigorous proof make it ideal for cryptographic applications requiring absolute certainty of primality.
 
 
-\section{Circom Utility Functions and Optimizations}
+\section{Zero-Knowledge Circuits in Circom}
 
-To implement various primality tests in Circom, we relied on essential utility functions and employed specific optimizations to overcome limitations and challenges. This section elaborates on these components and their significance in the circuits.
+The circuits in \texttt{circom/} prove, for a public $n$ (up to $32$ bits), that the test accepts $n$. A circuit is only as good as the constraints it contains: a value computed with an unconstrained assignment (\texttt{<--}) can be set to anything by a malicious prover. The first version of these circuits computed every modular exponentiation that way, never constrained the output \texttt{isPrime} to be $1$, and compared values with $1-(x-1)^2$, which is not a boolean. All of this was rewritten; this section describes the final design.
 
-\subsection*{Utility Functions}
+\subsection*{A sound arithmetic library}
 
-\subsubsection*{Num2Bits}
-\textbf{Purpose}: Converts an integer into its binary representation.  
-This function was critical for:
+All values are $k$-bit integers with $k \le 125$. The bound is what makes the library sound: the equation $a\cdot b = q\cdot n + r$ has both sides below $2^{2k+1}$, which is smaller than the BN254 scalar field ($\approx 2^{253.6}$), so it holds over the \emph{integers} and not only modulo the field prime. The templates, in \texttt{lib/}, are:
 \begin{itemize}
-    \item Efficiently performing modular exponentiation using repeated squaring.
-    \item Ensuring that the input values conform to binary constraints, reducing errors in circuit behavior.
+    \item \texttt{ModMul}: proves $r = ab \bmod n$ by constraining $ab = qn + r$ with $q < 2^k$ and $r < n$ (range checks by bit decomposition).
+    \item \texttt{ModExp}: square-and-multiply over the $k$ bits of the exponent, about $4k^2 + 13k$ constraints. The quadratic growth in the bit width, and the linear growth in the number of bases or certificate entries, is what makes the circuits large.
+    \item \texttt{IsZero}, \texttt{IsEqual}: genuinely boolean equality (the previous formula was not).
+    \item \texttt{AssertBaseInRange}: bases must satisfy $2 \le a \le n-2$; bases $0$, $1$ and $n-1$ would pass the Fermat test vacuously. Consequently $n \ge 5$.
+\end{itemize}
+Every top-level circuit asserts \texttt{isPrime} $=1$, so a composite has no valid witness. A single field element cannot hold the $256$-bit numbers of the original project goal; going beyond $125$ bits needs multi-limb arithmetic (Section~\ref{sec:noir}).
+
+\subsection*{The circuits}
+
+\textbf{Fermat and Lehmann.} Per-base results are chained with $\mathrm{acc}_{i+1} = \mathrm{acc}_i \cdot \mathrm{result}_i$ from $\mathrm{acc}_0 = 1$. (The first version never multiplied in the result of the first base, so $a_0$ was not tested.)
+
+\textbf{Rabin-Miller.} The decomposition $n-1 = d\cdot 2^r$ is derived inside the circuit and fully constrained: $r$ is one-hot encoded, $n - 1 = d \cdot 2^r$ and $d$ is odd, which pins $(d,r)$ uniquely, so a malicious prover cannot choose another decomposition (which would silently turn the test into the weaker Lehmann test). Squarings use \texttt{ModMul} directly. The first version never counted $a^d \equiv n-1$ as a pass (its loop started at $j=1$), and its sample input described $n = 561$ while claiming $n = 491$. The circuit shrank from $217{,}464$ to $64{,}972$ constraints while using ten bases instead of five.
+
+\textbf{Pratt.} A certificate is a list of entries $(p_i, g_i, q_{i,0},\dots,q_{i,F-1})$ with $p_i - 1 = 2^s \prod_l q_{i,l}$ (checked as an exact integer equality). Each entry has its own base $g_i$ with $g_i^{(p_i-1)/2} \not\equiv 1$, $g_i^{p_i-1} \equiv 1$ and $g_i^{(p_i-1)/q}\not\equiv 1$ for every distinct odd factor $q$ (a derived ``same as previous'' flag, so a check cannot be skipped). Every non-padding $q$ must equal the prime of some entry. Because $q$ divides $p_i - 1$ it is smaller than $p_i$, so induction on the value of the primes proves every entry prime and no cycle check is needed. Unused entries are padded with the valid entry $(3, 2)$. Only $n$ is public; the certificate is private witness. The sample certificate of the first version was also incomplete: $3$, $7$ and $17$ appeared as factors without entries.
+
+\subsection*{Size of the circuits}
+
+\begin{center}
+\begin{tabular}{lrrr}
+\hline
+Circuit (32-bit $n$) & Instance & Constraints & First version (unsound) \\
+\hline
+Fermat & 25 bases & 110{,}399 & 6{,}448 \\
+Lehmann & 10 bases & 44{,}189 & 2{,}598 \\
+Rabin-Miller & 10 bases & 64{,}972 & 6{,}414 (5 bases) \\
+Pratt & 9 entries, 4 factors & 198{,}828 & 10{,}799 \\
+\hline
+\end{tabular}
+\end{center}
+The first-version circuits were smaller precisely because they did not constrain the arithmetic.
+
+\subsection*{How the circuits were tested}
+
+Each circuit is compared against a Python reference on random and adversarial inputs, and its witnesses are \emph{tampered with}: one wire of an honest witness is changed and the constraint system must reject it (a wire that was still assigned with \texttt{<--} survives this test). Finally the tests are \emph{mutation-checked}: each soundness-critical constraint is deleted from a copy, and the test suite must then fail. This found, among others, the skipped first base, the vacuous bases and the ignored case $a^d\equiv n-1$, and showed that a ``tamper $d$ by $\pm 1$'' test alone would not have caught a missing ``$d$ is odd'' check, because a coherent alternative decomposition silently weakens the test.
+
+\section{Choosing the Toolchain}
+
+We measured whether newer tools help, on one machine (Apple M2, 8 cores, 8~GB), for Rabin-Miller with ten bases and a $32$-bit $n$ (identical statement everywhere):
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\hline
+ & Prove & Peak mem. & Proof & Setup \\
+\hline
+circom 2.1.9 + snarkjs 0.7.4 & 1.65--1.70 s & 1.2 GB & 0.8 KB & 49 s, 37 MB key \\
+circom 2.2.3 + snarkjs 0.7.6 & 1.65 s & 1.2 GB & 0.8 KB & 47 s, 37 MB key \\
+same keys, rapidsnark 0.0.8 & \textbf{0.13 s} & \textbf{68 MB} & 0.8 KB & (same) \\
+Noir 1.0 + Barretenberg 6.0 & 0.15 s & 81 MB & 14.7 KB & 0.9 s, no key \\
+\hline
+\end{tabular}
+\end{center}
+\begin{itemize}
+    \item Upgrading Circom and snarkjs alone does \emph{not} make proving faster. circom 2.2.x changed its default optimisation to \texttt{--O1}, which leaves $3{,}564$ extra linear constraints; \texttt{--O2} must be passed.
+    \item A native prover (rapidsnark) is a drop-in replacement for the same keys and is about $12\times$ faster with about $17\times$ less memory.
+    \item Groth16 proofs are the smallest ($128$ bytes on the curve; $\approx 0.8$~KB as JSON), about $19\times$ smaller than UltraHonk's $14.7$~KB; UltraHonk needs no per-circuit trusted setup.
+    \item The official ``Perpetual Powers of Tau'' download hosts no longer answer; ceremony files are therefore verified by their published BLAKE2b hash, and the build reuses a verified file instead of generating a single-party ceremony on every run.
+\end{itemize}
+The numbers are from a single machine and small circuits; rankings of proof systems change with circuit size.
+
+\section{Provable Primes and $N = p\cdot q$ in Noir}\label{sec:noir}
+
+The goal of the project is a zero-knowledge proof that $N = p\cdot q$ with large primes $p$ and $q$. The Circom library is limited to $125$-bit numbers, and Rabin-Miller with fixed public bases is not sound against a prover who picks a strong pseudoprime to those bases (a sound version needs hash-derived bases and about $40$ of them for $80$-bit security, roughly $40 \times 78{,}793 \approx 3.1$ million gates per $256$-bit prime, extrapolated from the measured one-base circuit). We therefore used Noir with the \texttt{noir-bignum} library (\texttt{noir/}) and a deterministic method.
+
+\subsection*{A Pocklington criterion}
+
+\textbf{Criterion.} Let $f$ be prime with $f^2 > n$, and suppose some $y$ satisfies $y^f \equiv 1 \pmod n$ and $\gcd(y-1, n) = 1$. Then $n$ is prime.
+
+\emph{Proof.} Let $p$ be any prime divisor of $n$. Modulo $p$, $y \not\equiv 1$ but $y^f \equiv 1$, so the order of $y$ is exactly $f$ ($f$ is prime), hence $f \mid p-1$ and $p > f > \sqrt n$. This holds for every prime divisor, so $n$ has a single prime factor: $n$ is prime. \qed
+
+An honest prover builds each prime as $n = f\cdot e + 1$ from the previous one (Maurer's provable primes, permitted by FIPS~186 for RSA keys) and takes $y = a^e$. The circuit does \emph{not} need the relation $n-1 = fe$ or the base $a$; dropping them halved the circuit. A chain $16 \to 32 \to 64 \to 128 \to 256$ bits, with trial division by the primes up to $251$ at the $16$-bit base case, certifies a $256$-bit prime with no error probability. We checked the criterion exhaustively for every $n < 1500$ and every prime $f < 200$: no composite is accepted, every honest prime is, and without $f^2 > n$ composites slip through (e.g.\ $573$ of them below $1500$).
+
+\subsection*{The circuits}
+
+\begin{itemize}
+    \item \texttt{prime\_chain}: a public $256$-bit $n$ is prime.
+    \item \texttt{semiprime}: a public $512$-bit $N$ equals $p\cdot q$ for private distinct $256$-bit primes $p,q$, each with its own chain. The product is checked exactly in a $512$-bit integer type (no wraparound), together with $N<2^{512}$ and $p\ne q$. Only $N$ is public.
+    \item \texttt{ecpp\_chain}: a public $64$-bit $n$ is prime, by the ECPP verification of Section~\ref{sec:ecpp} over the chain $64 \to 33 \to 17 \to 9$ bits.
 \end{itemize}
 
-\textbf{Role in Primality Tests}:
-\begin{itemize}
-    \item In modular exponentiation, the binary representation of the exponent enabled efficient computation.
-    \item Played a central role in breaking down large numbers into manageable binary operations for verification purposes.
-\end{itemize}
+\begin{center}
+\begin{tabular}{lrrr}
+\hline
+Statement & Gates & Prove & Peak mem. \\
+\hline
+$N = pq$, $p,q$ prime 256-bit (Pocklington) & 70{,}982 & 0.41 s & 248 MB \\
+$n$ is a prime of 256 bits (Pocklington) & 38{,}147 & 0.24 s & 131 MB \\
+$n$ is a prime of 64 bits (ECPP) & 121{,}036 & 0.6 s & 350 MB \\
+256-bit Rabin-Miller, 1 base (probabilistic) & 78{,}793 & 0.42 s & 270 MB \\
+256-bit Rabin-Miller, 10 bases (probabilistic) & 750{,}671 & 3.4 s & 1.3 GB \\
+\hline
+\end{tabular}
+\end{center}
+All proofs are zero-knowledge, $15$~KB, verified in $10$~ms. Pocklington is cheaper than a single Rabin-Miller base. Its price is that the prover must \emph{generate} the primes with the chain structure; ECPP can certify a prime issued by someone else but costs about $3\times$ more at $64$ bits than the $256$-bit Pocklington proof, and we could generate certificates (pure Python point counting) only up to about $64$ bits; its cost at $256$ bits was not measured.
 
-\subsubsection*{ModularExponentiation}
-\textbf{Purpose}: Computes modular exponentiation \( \text{base}^{\text{exp}} \mod \text{mod} \).  
-This is the core arithmetic operation used in all primality tests, including Fermat, Lehmann, Pratt, and ECPP.
+\subsection*{Evidence and limits}
 
-\textbf{Advantages}:
-\begin{itemize}
-    \item Provides an efficient way to handle large inputs, essential for primality testing of large numbers.
-    \item Reduces computational overhead by using the repeated squaring method, which has a time complexity of \( O(\log(\text{exp})) \).
-\end{itemize}
+Every soundness-relevant assertion was mutation-checked against an attack that satisfies all the other assertions: for the Pocklington steps the key forgery is a composite $n = p_1p_2$ with $p_i = 1 + k_i f$ and $y$ of order $f$ modulo both factors, which passes everything except $f^2>n$; for the semiprime circuit, all five assertions are caught. For ECPP, an exhaustive model for $n \le 55$ (and sampling up to $221$) accepts no composite; the size bound is necessary, and the on-curve and discriminant checks are redundant for soundness (the group-law formulas never use $b$ and the size bound already excludes singular curves). Known gaps: the ECPP inverse checks and top-bit assertions could not be attacked at circuit level; the Barrett constant of \texttt{noir-bignum} is an unvalidated witness by design (it only steers witness generation); all bit widths are fixed.
 
-\subsection*{Tricks and Optimizations in Pratt and ECPP}
+\section{Conclusion and Limitations}
 
-\subsubsection*{Static Sizes}
-Circom does not support dynamic array sizes, so we hardcoded sizes for arrays representing factors, primes, and elliptic curve parameters. 
-
-\textbf{Reason for Static Sizes}:
-\begin{itemize}
-    \item To simplify implementation and testing on constrained systems.
-    \item Ensure compatibility with Circom's strict constraints on signal declarations.
-\end{itemize}
-
-\textbf{Implications}:
-\begin{itemize}
-    \item In Pratt, the number of factors per prime (\texttt{maxFactors}) was limited to 5.
-    \item In ECPP, the number of primes (\texttt{maxPrimes}) and factors per prime were fixed to 5.
-\end{itemize}
-
-\textbf{Challenges}:
-\begin{itemize}
-    \item Larger inputs require increasing the static sizes, which significantly increases the number of constraints and computational complexity.
-    \item Testing larger certificates is challenging on limited hardware due to the exponential growth of constraint size.
-\end{itemize}
-
-\subsubsection*{Extra Input Columns}
-In circuits like Pratt and ECPP, additional input columns were introduced to simplify checks and reduce redundancy.
-
-\textbf{Added Inputs in Pratt}:
-\begin{itemize}
-    \item \textbf{Factors}: Precomputed prime factors of \( n-1 \).
-    \item \textbf{Exponents}: Corresponding exponents \( \frac{n-1}{\text{factor}_i} \) for modular checks.
-\end{itemize}
-
-\textbf{Added Inputs in ECPP}:
-\begin{itemize}
-    \item Elliptic curve parameters \( a \) and \( b \).
-    \item Coordinates \( (x, y) \) of a point on the curve.
-    \item Order \( m \) of the point, precomputed for efficiency.
-\end{itemize}
-
-\textbf{Benefits}:
-\begin{itemize}
-    \item Simplified verification by offloading complex computations to preprocessing.
-    \item Reduced the overall number of constraints in the circuit by leveraging precomputed values.
-\end{itemize}
-
-\subsubsection*{Non-Zero Constraints}
-Dynamic conditions, such as \( \text{if factor} \neq 0 \), are not directly supported in Circom. To handle this, additional signals were introduced to enforce binary constraints.
-
-\textbf{Why This Was Necessary}:
-\begin{itemize}
-    \item To ensure that unused slots in arrays (e.g., unused factors) do not affect the computation.
-    \item To meet Circom's requirement of explicitly defining all signal constraints.
-\end{itemize}
-
-\subsection*{Testing and Practical Considerations}
-
-\subsubsection*{Testing on Smaller Inputs}
-Due to system constraints, all circuits were tested on small primes and elliptic curve parameters. For example:
-\begin{itemize}
-    \item In Pratt, \( n-1 \) was factored into at most 5 primes.
-    \item In ECPP, elliptic curve parameters were selected for small primes (e.g., \( p = 23 \), \( p = 29 \)).
-\end{itemize}
-
-\textbf{Limitations}:
-\begin{itemize}
-    \item Larger primes require higher values for \texttt{maxFactors} and \texttt{maxPrimes}, which increases computational cost.
-    \item Proof generation time grows significantly with larger certificates due to the increased number of constraints.
-\end{itemize}
-
-\subsubsection*{Proof Generation Complexity}
-\begin{itemize}
-    \item Increasing \texttt{maxFactors} and \texttt{maxPrimes} results in quadratic growth in constraint size.
-    \item For ECPP, elliptic curve validation adds additional modular operations, further increasing computational cost.
-\end{itemize}
-
-\subsubsection*{Key Learnings and Future Improvements}
-\begin{itemize}
-    \item Explore dynamic sizing techniques in Circom to handle varying numbers of factors and primes.
-    \item Optimize modular arithmetic and elliptic curve operations for larger inputs.
-    \item Parallelize circuits to leverage multicore hardware for constraint computation.
-\end{itemize}
-
-\subsection*{Conclusion}
-
-The Circom implementations for Pratt and ECPP are functional for small inputs but require significant optimization for large-scale applications. These circuits provide a foundation for further research and development in cryptographic primality testing. Future contributions are encouraged to improve efficiency, scalability, and compatibility for real-world use cases.
-
-
+The first version of this project showed how primality tests map onto arithmetic circuits but its circuits did not constrain their arithmetic: a malicious prover could have ``proved'' that a composite number is prime. The final design constrains every value, enforces the result, and is tested adversarially. For $N = p\cdot q$ with $256$-bit primes the practical route is a deterministic Pocklington chain in Noir ($70{,}982$ gates, $0.41$~s), while the Circom circuits remain a tested $32$-bit reference. Open items: ECPP certificates beyond $64$ bits, a trusted ceremony file for the larger Groth16 circuits (no verified source was found for $2^{17}$ and $2^{18}$), a measured ECPP circuit at $256$ bits, and a formal review of the circuits.
 
 \end{document}
 

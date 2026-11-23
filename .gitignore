@@ -12,3 +12,7 @@ ptau/*.part
 ptau/local_*.ptau
 ptau/*
 !ptau/README.md
+*.aux
+*.log
+*.out
+*.toc

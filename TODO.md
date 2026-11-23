@@ -70,19 +70,9 @@ on their own sample inputs.
   - Verified end to end: `make CIRCUIT=rabin_miller all` takes 60 s (was ~22 min with a regenerated ceremony); rapidsnark proof 148 ms / 68 MB, accepted by snarkjs; missing ceremony fails with instructions.
   - Still open: no verified source for 2^17 / 2^18 ceremony files, so Fermat (110k constraints), Pratt (199k) and ECPP-Circom cannot be set up with a trusted ceremony yet (`ALLOW_LOCAL_PTAU=1` works for development).
 - [x] **11. Dependencies and a single test entry point.** DONE: `requirements.txt` (sympy), `package.json` (pins snarkjs 0.7.6), `make doctor`, and `make test` (Python-only, 4 s), `make test-circom`, `make test-noir`. **No CI**: a workflow would need circom/nargo/bb installed on a runner and I cannot validate it from here.
-- [ ] **12. README.**
-  - `\text` was mangled into a tab character (`	ext{mod}`).
-  - Usage only covers Pratt and ECPP.
-  - Prerequisites are missing (circom 2.1.x, snarkjs, node, sympy).
-  - Claims scripts exist for ECPP certificates (empty files).
-  - No results table.
-- [ ] **13. `main.tex` has wrong worked examples** (verified numerically).
-  - Fermat: it claims 3^560 ≡ 1 (mod 561). It is 375, so base 3 rejects 561.
-  - Lehmann: it claims 3^170 ≡ 340 (mod 341). It is 67, so 341 is rejected.
-  - Pratt: it claims 2^11 ≢ 1 (mod 23). It is 1, so base 2 is invalid for 23 (use 5).
-  - ECPP: the n=11 example conflates the curve order with n-1, and the report's "p = 23, 29" tests do not match `ecpp.json` (10177).
-  - The report has no results section at all (constraints, proving time, proof size, verification time), though that was the point of the last commits.
-- [ ] **14. `zkp_final_report.pdf` is stale.** Rebuild from `main.tex` after item 13, and ignore LaTeX aux files in `.gitignore`.
+- [x] **12. README.** DONE: rewritten from scratch. Results table, both stacks (Circom reference, Noir), method table with status, requirements, Makefile and Noir usage, test targets, an explicit limitations section, layout. The mangled `\text` is gone. The stale Circom ECPP circuit and its input were removed (it could not satisfy its own input; ECPP now lives in `noir/ecpp_chain`).
+- [x] **13. `main.tex` has wrong worked examples.** DONE (all checked numerically): Fermat 561 (3^560 = 375, not 1), Lehmann 341 (3^170 = 67, not 340), Pratt 23 (2 is not a valid base; uses 5, with the per-prime-base remark), and the ECPP section was wrong in substance (it required the point order to equal n-1): rewritten with the real Atkin-Goldwasser-Kilian theorem, a proof sketch, pseudocode and a worked n = 10007 example. The circuit sections describe the final sound design; new sections: toolchain evaluation, Pocklington criterion and the Noir circuits with results, and an honest limitations section.
+- [x] **14. `zkp_final_report.pdf` is stale.** DONE: rebuilt from `main.tex` (14 pages, no undefined references). The 2024 version remains in git history. LaTeX aux files are now ignored.
 - [ ] **15. Repo hygiene.** Commits use two git identities. Minor, and optional to fix (`.mailmap`).
 
 ## E. Toolchain / proof-system upgrade (option C, done 2026-11-23; see `bench/RESULTS.md`, `docs/TOOLCHAIN.md`)
