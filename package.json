@@ -1,0 +1,8 @@
+{
+  "name": "blockchain-zkps",
+  "private": true,
+  "description": "Pinned JavaScript tooling for the Circom pipeline (run `npm install`, then `make SNARKJS=./node_modules/.bin/snarkjs ...`).",
+  "devDependencies": {
+    "snarkjs": "0.7.6"
+  }
+}

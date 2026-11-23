@@ -46,8 +46,8 @@ def fermat_primality_test(n, k=5):
     Returns:
         bool: True if n is probably prime, False if n is composite.
     """
-    # 1 is not prime
-    if n == 1:
+    # 0, 1 and negative numbers are not prime
+    if n <= 1:
         return False
     # Small primes are prime
     if n in (2, 3):

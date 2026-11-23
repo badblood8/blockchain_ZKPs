@@ -58,28 +58,18 @@ on their own sample inputs.
   - Public 512-bit N, private distinct 256-bit primes p, q, each proven prime by a deterministic **Pocklington chain** (`noir/zkp_primality`, `noir/prime_chain`): 70,982 gates, prove 0.41 s / 248 MB, only N is public.
   - Checks `p*q = N` exactly in U512, `N < 2^512`, `p != q`. All five assertions mutation-checked; step-level mutation tests for the Pocklington criterion (`noir/test_steps.py`).
   - Decision taken: Noir for items 6 and 7 (the Circom circuits stay as the tested 32-bit reference).
-- [ ] **8. `scripts/ecpp.py` and `scripts/pratt.py` are empty (0 bytes).**
-  - Need an ECPP certificate generator that emits `inputs/ecpp.json`.
-  - Need to fold the standalone generator into `pratt.py`, or delete the stub.
-- [ ] **9. Input generation and tests.**
-  - Only Pratt has a generator. Fermat / Lehmann / Rabin-Miller / ECPP inputs are hand-written.
-  - The Pratt generator has no tests, hardcodes 8675309, and runs on import.
-  - The `fermat.py` test class sits above the function it tests.
-  - `n <= 0` is mishandled in Fermat and Lehmann.
-  - No negative tests: no composite input has ever been run through a circuit.
-
-## C. Build / tooling
-- [ ] **10. Makefiles.**
-  - Six near-identical copies (they differ only in name and POT level).
-  - All share one `build/` dir, so `witness.wtns`, `proof.json` and the zkeys collide between circuits.
-  - Powers of tau is regenerated on every run (slow).
-  - The entropy string is hardcoded.
-  - `clean` leaves ptau files behind.
-  - Commit messages say "verification time" was added, but `verify` has no timing.
-  - POT levels were set by hand.
-- [ ] **11. No dependency or test entry points.** No `requirements.txt` (sympy), no `package.json`, no circomlib decision, no single `make test`, no CI.
-
-## D. Docs and report
+- [x] **8. `scripts/ecpp.py` and `scripts/pratt.py` are empty.** DONE: the empty stubs are removed. The real generators are `scripts/pratt_certificate_generator.py` (rewritten in item 5) and `noir/ecpp_chain/gen_ecpp.py` (item 6).
+- [x] **9. Input generation and tests.** DONE (mostly).
+  - `scripts/gen_inputs.py` writes `inputs/*.json` for fermat / lehmann / rabin_miller / multiply / pratt with the same validity rules the circuits enforce, and refuses composites unless `--force`.
+  - `scripts/fermat.py` and `scripts/lehmann.py` now reject 0, 1 and negative numbers. `tests/test_scripts.py` covers the reference scripts, the generator and the helper (15 tests).
+  - Composite inputs have been run through every circuit in the Circom and Noir test suites (rejection tests).
+  - Not changed: in `fermat.py` the test class still sits above the function it tests (harmless at runtime).
+- [x] **10. Makefiles.** DONE: one `Makefile` replaces the six copies.
+  - Per-circuit `build/<circuit>/` (no collisions), always `--O2`, ceremony size computed from the circuit with snarkjs's exact rule (read from its source: `power = bit_length(constraints + public + outputs)`), a hash-verified Hermez file is reused from `ptau/` (never regenerated), random entropy per contribution, rapidsnark selectable (`PROVER=rapidsnark`), verification time and peak memory recorded in `build/<circuit>/metrics.json`, and snarkjs's silent `[ERROR]` + exit 0 is caught.
+  - `scripts/zk.py`: ceremony lookup / download with BLAKE2b verification against the snarkjs README hashes (falls through dead mirrors), timing, `doctor`. `ALLOW_LOCAL_PTAU=1` is the explicit INSECURE development fallback.
+  - Verified end to end: `make CIRCUIT=rabin_miller all` takes 60 s (was ~22 min with a regenerated ceremony); rapidsnark proof 148 ms / 68 MB, accepted by snarkjs; missing ceremony fails with instructions.
+  - Still open: no verified source for 2^17 / 2^18 ceremony files, so Fermat (110k constraints), Pratt (199k) and ECPP-Circom cannot be set up with a trusted ceremony yet (`ALLOW_LOCAL_PTAU=1` works for development).
+- [x] **11. Dependencies and a single test entry point.** DONE: `requirements.txt` (sympy), `package.json` (pins snarkjs 0.7.6), `make doctor`, and `make test` (Python-only, 4 s), `make test-circom`, `make test-noir`. **No CI**: a workflow would need circom/nargo/bb installed on a runner and I cannot validate it from here.
 - [ ] **12. README.**
   - `\text` was mangled into a tab character (`	ext{mod}`).
   - Usage only covers Pratt and ECPP.

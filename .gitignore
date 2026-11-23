@@ -7,3 +7,8 @@ __pycache__/
 *.pyc
 noir/*/target/
 noir/**/case*.toml
+node_modules/
+ptau/*.part
+ptau/local_*.ptau
+ptau/*
+!ptau/README.md
