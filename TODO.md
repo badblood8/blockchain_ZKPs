@@ -30,11 +30,15 @@ on their own sample inputs.
   - Mutation check: against the previous commit's circuits, all 4 regression tests fail, so they have teeth.
   - Constraint counts: Fermat 110,399, Lehmann 44,189.
   - Open point: these tests need a Fermat/Lehmann run per case (~1 s each), so the suite takes about a minute. Item 11 should wire it into one `make test`.
-- [ ] **4. Rabin-Miller circuit and input are both wrong.**
-  - `inputs/rabin_miller.json` has n=491 with d=35, r=4. That is the decomposition of 560 (n=561), not 490 = 2·245.
-  - The circuit squares with `exp <== 2` through a chain of components, so `r` is not enforced as a loop bound.
-  - `nMinusOneAcc` is a sum, not a boolean.
-  - `main` is `(5,128,10)` but the comment says 10 bases / 256 bits.
+- [x] **4. Rabin-Miller circuit and input are both wrong.** DONE.
+  - **Input fixed by design:** `d` and `r` are no longer inputs. The circuit derives them as hints and constrains them (`lib/twoadic.circom`, `CheckTwoAdicDecomposition`): one-hot selector for r, `n-1 = d * 2^r`, `d` odd, so (d, r) is unique and an even n has no witness. `inputs/rabin_miller.json` is now just `n` and the bases (it used to describe n=561 while claiming n=491).
+  - **Rewritten without the exp-2 chain:** squarings use `ModMul` directly, with the round mask `[j < r]` as a linear function of the selector. 217,464 -> 64,972 constraints, with 10 bases instead of 5.
+  - **Extra bug found:** the old loop started at `j = 1`, so `a^d == n-1` (j = 0, the most common way a prime passes) never counted as a pass. Fixed and covered by `test_x0_equal_n_minus_1_counts`.
+  - Removed the `maxRounds` parameter (it is now derived: `nBits - 1`, the largest r any n can have). `main` is `(10 bases, 32 bits)`, so the old comment/code mismatch is gone.
+  - **Tests** (`tests/test_primality.py::RabinMillerTests`, 11 tests + 2 decomposition tests in `tests/test_lib.py`): differential vs Python reference, primes with r = 1, 2, 3, 8, 16, 30, Carmichael numbers, strong pseudoprime 3215031751 (passes bases 2,3,5,7 but not 11), vacuous bases, tampering with `d` and the selector, and every *alternative* self-consistent decomposition (even `d`, wrong `r`, two selectors set, ...).
+  - **Mutation checks:** (A) ignoring `x_0 == n-1` fails 4 tests; (B) removing the "d is odd" check is caught by `test_decomposition_rejects_alternatives` (`d=2, r=15` accepted). The "tamper d by +-1" test alone would NOT have caught (B): a coherent alternative pair silently downgrades the test to Lehmann.
+  - **End to end:** real Groth16 proof for n = 982451653: 64,972 constraints, proving 2.0 s, verified OK, 806-byte proof (run with the existing 2^16 ceremony file; `makefile_rabin_miller` POT_LEVEL set to 17 to be safe).
+  - Note for the report (item 13): bases {2,3,5,7,11} are *deterministic* for all n < 2,152,302,898,747, so for the 32-bit circuit those five bases turn Rabin-Miller into a proof of primality, not just evidence.
 - [ ] **5. Pratt design is mathematically wrong.**
   - One global `base` (2) is used for every prime in the chain. 2 is not a primitive root mod 2168827, 1933 or 23, so those steps cannot pass. Needs a per-prime witness base.
   - `certPrimes[0]` is not tied to `mainPrime`.

@@ -92,6 +92,7 @@ class LibTests(unittest.TestCase):
         cls.modexp = CircuitHarness(os.path.join(ROOT, "tests/lib/modexp_test.circom"), cls.tmp)
         cls.modmul = CircuitHarness(os.path.join(ROOT, "tests/lib/modmul_test.circom"), cls.tmp)
         cls.iseq = CircuitHarness(os.path.join(ROOT, "tests/lib/iseq_test.circom"), cls.tmp)
+        cls.twoadic = CircuitHarness(os.path.join(ROOT, "tests/lib/twoadic_test.circom"), cls.tmp)
 
     @classmethod
     def tearDownClass(cls):
@@ -169,6 +170,50 @@ class LibTests(unittest.TestCase):
             self.assertFalse(self.iseq.check(forged), f"forged IsEqual({x},{y}) accepted")
             write_tampered(w, forged, 2, 1 - vals[2])
             self.assertFalse(self.iseq.check(forged), f"forged IsZero({x}) accepted")
+
+    # ---------- CheckTwoAdicDecomposition: n-1 = d * 2^r, d odd, r one-hot
+    def _decomp_accepts(self, n, d, r):
+        sel = [0] * 32
+        if r is not None:
+            sel[r] = 1
+        ok, w = self.twoadic.witness({"n": n, "d": d, "sel": sel})
+        if ok:
+            self.assertTrue(self.twoadic.check(w))
+        return ok
+
+    def test_decomposition_accepts_the_true_one(self):
+        rng = random.Random(3)
+        cases = [(65537, 1, 16), (13, 3, 2), (7, 3, 1), (4294967291, 2147483645, 1),
+                 (3221225473, 3, 30), (5, 1, 2)]
+        for _ in range(15):
+            r = rng.randrange(1, 31)
+            d = rng.randrange(0, 2**(31 - r)) * 2 + 1
+            cases.append(((d << r) + 1, d, r))
+        for n, d, r in cases:
+            self.assertTrue(self._decomp_accepts(n, d, r), f"valid decomposition rejected: n={n} d={d} r={r}")
+
+    def test_decomposition_rejects_alternatives(self):
+        # n = 65537: n-1 = 1 * 2^16.  Every alternative below is self-consistent
+        # (d * 2^r == n-1) or nearly so; only the odd-d rule excludes the first four.
+        bad = {
+            "d=2, r=15 (even d)": (65537, 2, 15),
+            "d=4, r=14 (even d)": (65537, 4, 14),
+            "d=2^15, r=1 (even d)": (65537, 2**15, 1),
+            "d=2^16, r=0 (r=0 not allowed)": (65537, 2**16, None),
+            "wrong r": (65537, 1, 15),
+            "wrong d": (65537, 3, 16),
+            "no selector": (65537, 1, None),
+            "n even (n-1 odd)": (100, 99, None),
+            "n even, r=1": (100, 99, 1),
+        }
+        for label, (n, d, r) in bad.items():
+            self.assertFalse(self._decomp_accepts(n, d, r), f"{label}: accepted")
+        # two selectors set / non-boolean selector
+        for sel in ([0, 0] + [1, 1] + [0] * 28, [0, 2] + [0] * 30, [1] + [0] * 31):
+            ok, _ = self.twoadic.witness({"n": 65537, "d": 1, "sel": sel})
+            self.assertFalse(ok, f"bad selector {sel[:6]}... accepted")
+        # d too wide to be a 32-bit number, with a matching selector
+        self.assertFalse(self._decomp_accepts(2**33 + 1, 2**30, 3))
 
     # ---------- Soundness: tamper with single wires
     def _tamper_all(self, harness, inputs, n_wires, label):

@@ -18,7 +18,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_lib import CircuitHarness, ROOT, read_wtns, write_tampered  # noqa: E402
 
-FERMAT_K, LEHMANN_K, NBITS = 25, 10, 32
+FERMAT_K, LEHMANN_K, RM_K, NBITS = 25, 10, 10, 32
 
 
 def bases_ok(n, bases):
@@ -32,6 +32,26 @@ def fermat_ref(n, bases):
 def lehmann_ref(n, bases):
     return (bases_ok(n, bases) and n % 2 == 1
             and all(pow(a, (n - 1) // 2, n) in (1, n - 1) for a in bases))
+
+
+def rabin_miller_ref(n, bases):
+    if not bases_ok(n, bases) or n % 2 == 0:
+        return False
+    d, r = n - 1, 0
+    while d % 2 == 0:
+        d //= 2
+        r += 1
+    for a in bases:
+        x = pow(a, d, n)
+        if x in (1, n - 1):
+            continue
+        for _ in range(r - 1):
+            x = x * x % n
+            if x == n - 1:
+                break
+        else:
+            return False
+    return True
 
 
 def is_prime(n):
@@ -53,6 +73,7 @@ class PrimalityBase:
     """Shared tests; subclasses set NAME, K, ref."""
     NAME = K = None
     harness = None
+    TAMPER_RE = r"\.(acc\[\d+\]|isOne\[\d+\]\.(out|inv)|isNMinusOne\[\d+\]\.(out|inv)|baseOk\[\d+\])$"
 
     @classmethod
     def ref(cls, n, bases):
@@ -128,8 +149,7 @@ class PrimalityBase:
                 label, var, comp, name = line.strip().split(",", 3)
                 if int(var) >= 0:
                     names[name] = int(var)
-        targets = [v for nm, v in names.items()
-                   if re.search(r"\.(acc\[\d+\]|isOne\[\d+\]\.(out|inv)|isNMinusOne\[\d+\]\.(out|inv)|baseOk\[\d+\])$", nm)]
+        targets = [v for nm, v in names.items() if re.search(self.TAMPER_RE, nm)]
         self.assertGreater(len(targets), 10)
         rng = random.Random(5)
         survivors = []
@@ -178,6 +198,85 @@ class LehmannTests(PrimalityBase, unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp, ignore_errors=True)
+
+
+class RabinMillerTests(PrimalityBase, unittest.TestCase):
+    NAME, K = "rabin_miller", RM_K
+    PSEUDOPRIME = 2047         # 23 * 89, strong pseudoprime to base 2 only
+    ref = staticmethod(rabin_miller_ref)
+    TAMPER_RE = (r"\.(acc\[\d+\]|passed\[\d+\]|hit\[\d+\]|d|pow2r|sel\[\d+\]|"
+                 r"isOne\[\d+\]\.(out|inv)|hitAcc\[\d+\]\[\d+\]|isNm1\[\d+\]\[\d+\]\.(out|inv)|x\[\d+\]\[\d+\])$")
+
+    def pass_and_fail_base(self):
+        assert rabin_miller_ref(2047, [2]) and not rabin_miller_ref(2047, [3])
+        return 2, 3
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.mkdtemp(prefix="zkp_rm_")
+        cls.harness = CircuitHarness(os.path.join(ROOT, "circom/rabin_miller.circom"), cls.tmp)
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    STD = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
+
+    def test_every_two_adic_valuation(self):
+        """Primes whose n-1 has r = 1, 2, 3, 8, 16, 30 factors of two (and the 32-bit extremes)."""
+        for n in (7, 11, 13, 17, 97, 257, 65537, 982451653, 2147483647, 3221225473, 4294967291):
+            r = 0
+            while (n - 1) >> r & 1 == 0:
+                r += 1
+            bases = pad([a for a in self.STD if a <= n - 2], self.K, 2)
+            self.assertTrue(rabin_miller_ref(n, bases))
+            self.assertTrue(self.accepts(n, bases), f"prime {n} (r={r}) rejected")
+
+    def test_carmichael_and_pseudoprimes_rejected(self):
+        for n in (561, 1105, 1729, 2465, 2821, 6601, 8911, 2047, 1373653, 25326001):
+            self.assertFalse(self.accepts(n, self.STD), f"composite {n} accepted")
+
+    def test_strong_pseudoprime_to_first_four_primes(self):
+        """3215031751 = 151*751*28351 passes bases 2,3,5,7 but not 11."""
+        n = 3215031751
+        self.assertTrue(all(rabin_miller_ref(n, [a]) for a in (2, 3, 5, 7)))
+        self.assertFalse(rabin_miller_ref(n, [11]))
+        self.assertTrue(self.accepts(n, pad([2, 3, 5, 7], self.K, 2)), "should pass with only bases 2,3,5,7")
+        self.assertFalse(self.accepts(n, self.STD), "base 11 should expose it")
+
+    def test_x0_equal_n_minus_1_counts(self):
+        """Regression: the old circuit never counted a^d == n-1 (j = 0) as a pass."""
+        n = 13                      # n-1 = 12 = 3 * 2^2, and 2^3 = 8, 3^3 = 1, 5^3 = 8 ... find a with a^d == n-1
+        d = 3
+        hits = [a for a in range(2, n - 1) if pow(a, d, n) == n - 1]
+        self.assertTrue(hits, "need a base with a^d == n-1 for this test")
+        self.assertTrue(self.accepts(n, pad(hits, self.K, hits[0])))
+
+    def test_tamper_decomposition(self):
+        """d, pow2r and the one-hot selector cannot be changed to another consistent-looking value."""
+        n = 65537                   # n-1 = 2^16, d = 1, r = 16
+        ok, w = self.harness.witness({"n": n, "a": pad([3], self.K, 3)})
+        self.assertTrue(ok)
+        vals = read_wtns(w)[0]
+        names = {}
+        with open(os.path.join(self.harness.dir, self.NAME + ".sym")) as f:
+            for line in f:
+                label, var, comp, name = line.strip().split(",", 3)
+                if int(var) >= 0:
+                    names[name] = int(var)
+        # (pow2r is folded into a linear combination by the optimizer, so it has no wire of its own)
+        # (likewise sel[maxR] may be substituted away by "sum of sel == 1")
+        wires = [names["main.test.d"]] + [names[f"main.test.sel[{j}]"] for j in (1, 15, 16, 17, 30)
+                                          if f"main.test.sel[{j}]" in names]
+        self.assertGreaterEqual(len(wires), 5)
+        survivors = []
+        for wire in wires:
+            for delta in (1, -1):
+                t = os.path.join(self.harness.dir, f"dec_{wire}_{delta}.wtns")
+                write_tampered(w, t, wire, vals[wire] + delta)
+                if self.harness.check(t):
+                    survivors.append((wire, delta))
+        self.assertEqual(survivors, [], f"decomposition wires tampered but constraints still hold: {survivors}")
 
 
 if __name__ == "__main__":
