@@ -115,6 +115,30 @@ n-1 (one big-number equality per base instead of one per bit).
 * The Hermez ceremony files used here come from a hash-verified community mirror because the official
   hosts return 403 now (see `docs/TOOLCHAIN.md`).
 
+## 6. The project goal in Noir: N = p*q with provable primes (added after choosing Noir)
+
+All of `noir/`, same machine, zero-knowledge UltraHonk proofs of 15 KB, verified in 10 ms:
+
+| statement | method | gates | prove time / peak memory |
+|---|---|---|---|
+| public **512-bit N = p*q**, private distinct 256-bit primes | Pocklington chains for p and q | **70,982** | **0.41 s / 248 MB** |
+| public 256-bit n is prime | Pocklington chain 16->32->64->128->256 | 38,147 | 0.24 s / 131 MB |
+| public 64-bit n is prime | **real ECPP** chain 64->33->17->9 bits | 121,036 | 0.6 s / 350 MB |
+| (earlier) 256-bit Rabin-Miller, 1 base | probabilistic | 78,793 | 0.42 s / 270 MB |
+| (earlier) 256-bit Rabin-Miller, 10 bases | probabilistic | 750,671 | 3.4 s / 1.3 GB |
+
+* **Deterministic Pocklington is ~2x cheaper than ONE Rabin-Miller base at 256 bits** (38,147 vs 78,793 gates)
+  and has no error probability. A sound Rabin-Miller (hash-derived bases, ~40 for 80-bit security) would be about
+  3.1 M gates per prime (extrapolated from the measured per-base cost, not measured).
+* The Pocklington criterion needs only `f` prime, `f^2 > n`, and a residue `y` with `y^f = 1`, `gcd(y-1, n) = 1`.
+  Dropping the `n-1 = f*e` link and the base halved the circuit (68,868 -> 38,147 gates). An exhaustive check
+  (n < 1500, all primes f < 200) confirms it accepts no composite.
+* **ECPP works for any prime but is expensive**: at 64 bits it already costs 3x the 256-bit Pocklington proof, and a
+  chain at best halves the bit length per level. Its ECPP gate count at 256 bits was not measured.
+* Trade-off: Pocklington requires the prover to have *generated* the primes with the chain structure (provable
+  primes); ECPP can certify a prime issued by someone else.
+* Evidence and gaps for each circuit: `noir/README.md` ("How much to trust each part").
+
 ## Reproduce
 
 ```bash

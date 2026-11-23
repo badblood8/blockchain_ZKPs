@@ -49,18 +49,15 @@ on their own sample inputs.
   - **Tests** (`tests/test_pratt.py`, 16 tests): valid certificates for many primes, every composite-with-best-certificate tried against EVERY base (none certifies), 12 targeted forgeries (each first checked to be invalid in Python), 45-case mutation fuzzing (circuit == Python reference on every one), wire tampering, and the real 32-bit circuit.
   - **Mutation checks:** deleting any of 6 soundness constraints is caught (membership, exact factorization, g^((p-1)/q) != 1, mainPrime tie, h != 1, g^(p-1) == 1). One survivor, the partial-product range check: it is only needed when 31 + nBits*F >= 253 (F >= 7 at 32 bits), so it is unreachable at tested sizes. Kept as defense-in-depth (about 165 constraints per entry).
   - **Size:** 198,828 constraints (needs 2^18 ptau; the full-size end-to-end proof is deferred to item 10, which should build one shared ptau). Small instance (16-bit, 7x5, 50,092 constraints) proven end to end: proving 1.7 s, verifies, 805-byte proof, public signals = just the prime, and the proof is rejected against a different prime.
-- [ ] **6. ECPP circuit is not ECPP.**
-  - No elliptic-curve point arithmetic, no check that `m*P = O`, no check on `q*P` for the large factor q.
-  - `isOrderValid = 1 - x^order^2` is inverted (it is 0 when the result is 1).
-  - `inputs/ecpp.json` is 5 unrelated curves against one prime (10177), with no recursion down to a small prime.
-  - Output is garbage on its own input.
-- [ ] **7. `multiply` does not reach the project goal (N = p·q, p and q prime).**
-  - There is no primality check on p or q, and no `p, q > 1` range check (so 1·N passes).
-  - N is an output but p and q are private: nothing composes with the primality circuits.
-  - Inputs are quoted strings.
-  - Need a combined circuit.
-
-## B. Missing / empty files
+- [x] **6. ECPP circuit is not ECPP.** DONE in Noir (`noir/ecpp_chain`, `noir/zkp_primality/src/ecpp.nr`).
+  - Real Atkin-Goldwasser-Kilian verification: affine curve arithmetic with every inverse a verified hint, `R = [k]P`, `[q-1]R = -R`, and the size bound `q >= (r+2)^2` with `(r+1)^4 > n` (implies `q > (n^(1/4)+1)^2`).
+  - 64-bit chain 64 -> 33 -> 17 -> 9 bits with trial division at the bottom: 121,036 gates, prove 0.6 s / 350 MB. Python generator (`gen_ecpp.py`, baby-step giant-step point counting) and reference verifier (`ecpp_py.py`).
+  - Evidence: exhaustive model (`ecpp_chain/model_check.py`): the rule accepts **no composite** (n <= 55 exhaustive, 13 larger sampled), the size bound is necessary (dropping it accepts every composite tested); on-curve and discriminant checks are redundant (kept as defense in depth). 9 tests; mutants for the bound, the `r` witness and the final `[q]R = O` check are caught.
+  - **Gaps:** inverse checks and top-bit assertions have no circuit-level attack (hints are computed inside the circuit); only <= 64-bit certificates can be generated (pure Python); ECPP at 256 bits was not measured.
+- [x] **7. `multiply` does not reach the project goal (N = p*q, p and q prime).** DONE in Noir (`noir/semiprime`).
+  - Public 512-bit N, private distinct 256-bit primes p, q, each proven prime by a deterministic **Pocklington chain** (`noir/zkp_primality`, `noir/prime_chain`): 70,982 gates, prove 0.41 s / 248 MB, only N is public.
+  - Checks `p*q = N` exactly in U512, `N < 2^512`, `p != q`. All five assertions mutation-checked; step-level mutation tests for the Pocklington criterion (`noir/test_steps.py`).
+  - Decision taken: Noir for items 6 and 7 (the Circom circuits stay as the tested 32-bit reference).
 - [ ] **8. `scripts/ecpp.py` and `scripts/pratt.py` are empty (0 bytes).**
   - Need an ECPP certificate generator that emits `inputs/ecpp.json`.
   - Need to fold the standalone generator into `pratt.py`, or delete the stub.
@@ -106,7 +103,7 @@ on their own sample inputs.
   - `experiments/noir_rabin_miller_32`: faithful 32-bit port. 22,126 gates, prove 0.15 s / 81 MB, proof 14.7 KB (vs Groth16 ~0.8 KB), no per-circuit setup.
   - `experiments/noir_rabin_miller_256`: 256-bit Rabin-Miller with `RuntimeBigNum`, 10 bases = 750,671 gates, prove 3.4 s / 1.3 GB, verify 10 ms. **Circom's single-field-element design caps at 125 bits** (951,448 constraints at that width).
   - Weaker assurance than the Circom work: 4 assertion mutants survive the 256-bit tests (2 necessary ones are justified by an exhaustive small-size model, 2 are provably redundant). See `bench/RESULTS.md` section 4.
-- [ ] **Decision needed: Noir or Circom for items 6 (ECPP) and 7 (N = p*q)?** Circom caps at 125 bits; Noir reaches 256 bits but proofs are ~19x larger and the code base would split in two languages.
+- [x] **Decision: Noir** for items 6 and 7 (chosen 2026-11-23). Circom caps at 125 bits; Noir reaches 256 bits with ~19x larger proofs.
 - [ ] **Adopt in the build (extends item 10):** compile with `--O2`; prove with rapidsnark; use hash-verified Hermez ptau files instead of `powersoftau new` (the official hosts are dead: see `docs/TOOLCHAIN.md`); no verified 2^17/2^18 source yet, which blocks full-size Pratt/Fermat setups.
 - [ ] **Apply the left-to-right idea to the Circom Rabin-Miller** (no explicit d/r decomposition, one hinted equality per base): would shrink it and remove `lib/twoadic.circom`.
 - [ ] Add the Noir tests (`nargo test`, `test_noir.py`, `model_check.py`) to the single test command (item 11).

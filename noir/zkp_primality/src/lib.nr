@@ -12,3 +12,4 @@
 pub mod native;
 pub mod pocklington;
 pub mod chain256;
+pub mod ecpp;
