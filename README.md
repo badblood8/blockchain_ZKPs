@@ -1,104 +1,120 @@
+# Zero-knowledge proofs of primality, and of N = p·q
 
-# Cryptographic Banking Application: Zero-Knowledge Proof for \( N = p*q \) with Large Prime Factors
+Circuits that prove, without revealing the witness, that a number is prime, culminating in a proof that a
+public 512-bit **N = p·q** is the product of two distinct 256-bit primes **p** and **q** that stay private
+(the "cryptographic banking" use case: prove an RSA modulus is well formed without disclosing its factors).
 
-In this project, we explore various primality testing methods as foundational components in cryptographic banking applications. Specifically, we implement Zero-Knowledge Proofs (ZKPs) to verify the primality of large numbers, with a final objective of constructing a ZKP to validate \( N = p*q \), where \( p \) and \( q \) are large primes.
+Two implementations of the same ideas:
 
-Circom is used to implement these proofs, and this repository contains both the circuits and scripts to generate and verify certificates of primality. Contributions for optimization and further testing are welcome.
+| | language / proof system | numbers | role |
+|---|---|---|---|
+| `circom/` | Circom, Groth16 (tiny 0.8 KB proofs, per-circuit trusted setup) | up to 125 bits, instantiated at **32 bits** | the tested reference of the classic tests |
+| `noir/` | Noir + Barretenberg UltraHonk (14.7 KB proofs, universal setup) | **256 bits** (512-bit N), ECPP at 64 bits | the practical route to N = p·q |
 
----
+Everything was rewritten and adversarially tested in 2026; the first (2024) circuits did not constrain their
+arithmetic and could have "proved" a composite prime (see the report and `TODO.md` for what was wrong).
 
-## Circom Installation
+## Results at a glance
 
-Refer to the official Circom documentation for installation: [Circom Documentation](https://docs.circom.io/)
+Apple M2 (8 cores), one run of each configuration; all Noir proofs are zero-knowledge, 15 KB, verified in 10 ms.
 
----
+| Statement | Method | Gates / constraints | Prove | Peak memory |
+|---|---|---|---|---|
+| public 512-bit **N = p·q**, private distinct 256-bit primes | Pocklington chains (Noir) | 70,982 | **0.41 s** | 248 MB |
+| public 256-bit n is prime | Pocklington chain (Noir) | 38,147 | 0.24 s | 131 MB |
+| public 64-bit n is prime | real ECPP (Noir) | 121,036 | 0.6 s | 350 MB |
+| 32-bit n, Rabin-Miller with 10 bases | Circom + rapidsnark | 42,561 | 0.12 s | 57 MB |
+| same | Circom + snarkjs | 42,561 | 1.5 - 2 s | 0.7 - 0.9 GB |
 
-## Primality Testing Methods
+Details, the other circuits and the caveats: [`bench/RESULTS.md`](bench/RESULTS.md). Reference documents:
+[`main.tex`](main.tex) / [`zkp_final_report.pdf`](zkp_final_report.pdf) (the report), [`noir/README.md`](noir/README.md)
+(what each Noir package proves and how much to trust it), [`docs/TOOLCHAIN.md`](docs/TOOLCHAIN.md) (versions and pitfalls),
+[`TODO.md`](TODO.md) (audit and status of every item).
 
-1. **Fermat Primality Test**  
-   - **Algorithm**: Uses Fermat's Little Theorem, asserting that if \( a^{n-1} \equiv 1 \ (	ext{mod} \ n) \) for several random bases \( a \), \( n \) is likely prime.  
-   - **Pros**: Simple and efficient for small numbers.  
-   - **Cons**: Can produce pseudoprimes, which falsely pass as primes.
+## Primality methods
 
-2. **Lehmann Primality Test**  
-   - **Algorithm**: Combines Fermat's method with an additional condition: for a chosen base \( a \), \( a^{(n-1)/2} \) should be \( \pm1 \ (	ext{mod} \ n) \).  
-   - **Pros**: More accurate than Fermat’s test.  
-   - **Cons**: Still not fully reliable for all composites.
+| Method | Idea | Deterministic? | Where | Notes |
+|---|---|---|---|---|
+| Fermat | $a^{n-1} \equiv 1 \pmod n$ for several bases | no (Carmichael numbers pass) | `circom/fermat.circom` | bases must satisfy $2 \le a \le n-2$ |
+| Lehmann | $a^{(n-1)/2} \equiv \pm 1 \pmod n$ | no | `circom/lehmann.circom` | n odd |
+| Rabin-Miller | strong probable prime: $n-1 = d\,2^r$ | no (error $\le 4^{-k}$ for random bases) | `circom/rabin_miller.circom`, `experiments/noir_rabin_miller_*` | with fixed public bases an adversary can choose a pseudoprime |
+| Pratt | Lucas: a primitive root per prime and a full factorisation of $p-1$, recursively | yes | `circom/pratt.circom`, `scripts/pratt_certificate_generator.py` | needs $p-1$ to factor |
+| **Pocklington chain** | $f$ prime, $f^2>n$, $y^f \equiv 1$, $\gcd(y-1,n)=1 \Rightarrow n$ prime | **yes** | `noir/prime_chain`, `noir/semiprime` | prover builds the primes as $n = fe+1$ (provable primes) |
+| ECPP | elliptic curve of order $kq$ with $q>(n^{1/4}+1)^2$ | yes | `noir/ecpp_chain` | works for any prime; ~9 mulmods per scalar bit; certificates up to ~64 bits here |
 
-3. **Rabin-Miller Primality Test**  
-   - **Algorithm**: A probabilistic test that decomposes \( n-1 \) into \( 2^s \cdot d \) and checks bases \( a \) for nontrivial square roots of 1 mod \( n \).  
-   - **Pros**: Highly accurate and widely used in practice.  
-   - **Cons**: Probabilistic, though accuracy improves with more rounds.
+## Requirements
 
-4. **Pratt Primality Certificate**  
-   - **Algorithm**: A deterministic method based on recursively proving the primality of factors of \( n-1 \) and confirming nontrivial roots modulo \( n \).  
-   - **Pros**: Offers a certificate of primality, verifiable in polynomial time.  
-   - **Cons**: Computationally intense for very large numbers.
+* Circom side: `circom` 2.2.x (**always compile with `--O2`**, the Makefile does), `snarkjs` 0.7.6, `node`, `python3` with `sympy`
+  (`pip install -r requirements.txt`; `npm install` pins snarkjs). Optional: [rapidsnark](https://github.com/iden3/rapidsnark) for ~12× faster proving.
+* Noir side: `nargo` 1.0.0 and `bb` 6.0.0 (these two must be paired; see `docs/TOOLCHAIN.md`).
+* `make doctor` shows what is installed.
 
-5. **ECPP (Elliptic Curve Primality Proving)**  
-   - **Algorithm**: Uses elliptic curves and their properties to construct primality certificates, verifying that a given number \( n \) satisfies specific elliptic curve constraints and group order conditions.  
-   - **Pros**: Offers deterministic certificates and is highly scalable for large inputs.  
-   - **Cons**: Requires advanced mathematical constructs and more complex computations than Pratt certificates.
-
----
-
-## Project Structure
-
-- **scripts/**: Python scripts implementing each primality test and generating certificates (for Pratt and ECPP).  
-- **circom/**: Circom circuits for each test, enabling ZKP generation.  
-- **makefiles/**: Scripts to run each method, step-by-step or in batch.  
-- **inputs/**: JSON input files, e.g., `pratt.json` and `ecpp.json`, containing values and certificates.
-
----
-
-## Usage
-
-To use a specific test, e.g., the Pratt certificate, run the following:
+## Circom: build, prove, verify
 
 ```bash
-make -f makefiles/makefile_pratt
+make list                                   # multiply fermat lehmann rabin_miller pratt
+make CIRCUIT=rabin_miller all               # compile, witness, setup, prove, verify, metrics
+make CIRCUIT=pratt PROVER=rapidsnark RAPIDSNARK_DIR=/path/to/rapidsnark proof verify
+make CIRCUIT=rabin_miller clean
 ```
 
-To use the ECPP certificate:
+* Each circuit builds in `build/<circuit>/`; times and peak memory land in `build/<circuit>/metrics.json`.
+* **Ceremony file.** `make setup` needs a hash-verified Hermez "powers of tau" file in `ptau/` (power computed from the
+  circuit) and reuses it. `python3 scripts/zk.py fetch-ptau 16` downloads and verifies one (the official hosts are dead; see
+  `docs/TOOLCHAIN.md`). No verified source was found for 2^17 / 2^18, which Fermat (110,399 constraints) and Pratt
+  (198,828) need; `ALLOW_LOCAL_PTAU=1` generates an **insecure single-party** ceremony for development only.
+* Other inputs: `python3 scripts/gen_inputs.py rabin_miller 982451653` (also `fermat`, `lehmann`, `multiply`, `pratt`).
+  The shipped circuits take 32-bit n, require n ≥ 5 and bases in [2, n−2]; a composite has **no valid witness**.
+
+## Noir: prove N = p·q
 
 ```bash
-make -f makefiles/makefile_ecpp
+export NARGO=/path/to/nargo
+cd noir/semiprime
+python3 gen_semiprime.py 11 12 > Prover.toml          # builds p and q with their primality chains
+nargo execute
+bb write_vk -b target/semiprime.json -o target/out
+bb prove    -b target/semiprime.json -w target/semiprime.gz -k target/out/vk -o target/out
+bb verify   -k target/out/vk -p target/out/proof -i target/out/public_inputs
 ```
 
-To clean up generated files:
+The only public input is N. See `noir/README.md` for the other circuits and for the evidence behind each one.
+
+## Tests
 
 ```bash
-make -f makefiles/makefile_pratt clean
-make -f makefiles/makefile_ecpp clean
+make test           # python3 + sympy only (4 s): reference scripts, input generator, ceremony helper, Pratt generator, models
+make test-circom    # needs circom + snarkjs + node: library, Fermat/Lehmann/Rabin-Miller, Pratt   (several minutes)
+NARGO=/path/to/nargo make test-noir    # Pocklington, N = p·q, ECPP                            (a few minutes)
 ```
 
-Run each test with caution as large inputs require high processing power.
+The circuit tests compare against Python references, tamper with witness wires, and are **mutation-checked**: each
+soundness-critical constraint is deleted from a copy and an attack that satisfies everything else must then be accepted.
 
----
+## Limitations (please read)
 
-## Proof Size and Proving Time
+* **Not audited.** No formal review; the evidence is the test suites above. Per-component evidence and known gaps are in
+  `noir/README.md` ("How much to trust each part").
+* Circom circuits are limited to 125-bit values by design (one BN254 field element) and instantiated at 32 bits.
+  Rabin-Miller / Fermat / Lehmann give probabilistic statements only.
+* The Pocklington proof requires the prover to have *generated* the primes with the chain structure.
+* ECPP certificates can only be generated up to about 64 bits here (pure-Python point counting); the 256-bit ECPP gate count was not measured.
+* Groth16 setups made with `ALLOW_LOCAL_PTAU=1` or with the benchmark scripts are not secure; the `.zkey` files from `make` get a
+  fresh random contribution but their security rests on the ceremony file used.
+* `experiments/` and `bench/` are measurements and prototypes, not production code.
 
-To measure the proof size and proving time, the makefiles include commands for time tracking. After running the proof generation step, it will output the time taken (in milliseconds or seconds depending on the system) and the size of the generated proof.
+## Layout
 
-Example commands for ECPP:
-
-```bash
-make -f makefiles/makefile_ecpp proof
-make -f makefiles/makefile_ecpp metrics
+```
+circom/        circuits (multiply, fermat, lehmann, rabin_miller, pratt)      lib/      sound Circom library
+inputs/        sample inputs                                                  scripts/  reference tests, generators, zk.py
+noir/          Noir packages: zkp_primality (library), prime_chain, semiprime, ecpp_chain, step_* test harnesses
+experiments/   Noir Rabin-Miller prototypes (32 and 256 bit)                  bench/    benchmark harness and results
+tests/         Circom test suites (+ test_scripts.py)                         docs/     toolchain notes
+Makefile       build pipeline and test entry points                           main.tex  the report
 ```
 
-This will display the proving time and proof size in the output.
+## Contributions and citation
 
----
-
-## Contributions
-
-This repository is an evolving project with a focus on cryptographic banking applications. Code is not fully optimized, and contributions are welcome to enhance performance and functionality.
-
----
-
-## Citation
-
-Circom and SnarkJS are core components. Please refer to [Circom Documentation](https://docs.circom.io/) for usage and API references.
-
----
+Contributions for optimisation and further testing are welcome. Circom and snarkjs are core components of the Circom
+side; Noir, Barretenberg and noir-bignum of the Noir side (see the respective documentation).

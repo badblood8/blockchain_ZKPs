@@ -1,0 +1,8 @@
+[package]
+name = "step_big"
+type = "bin"
+authors = [""]
+compiler_version = ">=1.0.0"
+
+[dependencies]
+zkp_primality = { path = "../zkp_primality" }
